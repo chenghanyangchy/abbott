@@ -14,10 +14,6 @@ source = "vcs"
 only-include = ["src"]
 sources = ["src"]
 
-# Always include the __FRACTAL_MANIFEST__.json file in the package
-[tool.hatch.build]
-include = ["__FRACTAL_MANIFEST__.json"]
-
 
 # Project metadata (see https://peps.python.org/pep-0621)
 [project]
@@ -31,8 +27,8 @@ authors = [
 ]
 
 # Required Python version and dependencies
-requires-python = ">=3.9"
-dependencies = ["fractal-tasks-core == 1.3.1", "scikit-image"]
+requires-python = ">=3.10"
+dependencies = ["fractal-tasks-core == 1.3.1", "itk", "itk-elastix", "h5py", "ngio"]
 
 # Optional dependencies (e.g. for `pip install -e ".[dev]"`, see
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies)
