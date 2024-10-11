@@ -1,7 +1,7 @@
-import abbott
 import json
 from pathlib import Path
 
+import abbott
 
 PACKAGE = "abbott"
 PACKAGE_DIR = Path(abbott.__file__).parent
