@@ -28,7 +28,7 @@ authors = [
 
 # Required Python version and dependencies
 requires-python = ">=3.10"
-dependencies = ["fractal-tasks-core == 1.3.1", "itk", "itk-elastix", "h5py", "ngio"]
+dependencies = ["fractal-tasks-core == 1.3.1", "itk", "itk-elastix", "h5py", "ngio == 0.1.0b8"]
 
 # Optional dependencies (e.g. for `pip install -e ".[dev]"`, see
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies)
