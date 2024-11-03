@@ -1,5 +1,6 @@
 """Example to run abbott registration workflows."""
 
+from abbott.fractal_tasks.apply_registration_elastix import apply_registration_elastix
 from abbott.fractal_tasks.compute_registration_elastix import (
     compute_registration_elastix,
 )
@@ -16,6 +17,7 @@ def test_registration_workflow():
     wavelength_id = "A01_C01"
     roi_table = "FOV_ROI_table"
     level = 0
+    reference_acquisition = 19
 
     # FIXME: Get Zarr_urls based on test_data_dir
     test_data_dir = (
@@ -26,7 +28,7 @@ def test_registration_workflow():
     parallelization_list = init_registration_hcs(
         zarr_urls=zarr_urls,
         zarr_dir="",
-        reference_acquisition=19,
+        reference_acquisition=reference_acquisition,
     )["parallelization_list"]
 
     for param in parallelization_list:
@@ -40,6 +42,16 @@ def test_registration_workflow():
             parameter_files=parameter_files,
             level=level,
         )
+
+    # FIXME: Make this run on all zarr_urls once the task supports this
+    apply_registration_elastix(
+        # Fractal parameters
+        zarr_url=zarr_urls[1],
+        # Core parameters
+        roi_table=roi_table,
+        reference_acquisition=reference_acquisition,
+        overwrite_input=False,
+    )
 
 
 if __name__ == "__main__":

@@ -222,7 +222,8 @@ def compute_registration_elastix(
         # FIXME: Figure out where to put files
         for i in range(trans.GetNumberOfParameterMaps()):
             trans_map = trans.GetParameterMap(i)
-            fn = Path(zarr_url) / "registration" / (f"roi_{i_ROI}_t{i}.txt")
+            # FIXME: Switch from ROI index to ROI names?
+            fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{i_ROI}_t{i}.txt")
             fn.parent.mkdir(exist_ok=True, parents=True)
             trans.WriteParameterFile(trans_map, fn.as_posix())
 

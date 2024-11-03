@@ -1,11 +1,14 @@
 """Init registration module for image-based registration based on tasks-core."""
 
+import logging
 from typing import Any
 
 from fractal_tasks_core.tasks.image_based_registration_hcs_init import (
     image_based_registration_hcs_init,
 )
 from pydantic import validate_call
+
+logger = logging.getLogger(__name__)
 
 
 @validate_call
@@ -46,4 +49,13 @@ def init_registration_hcs(
         zarr_urls=zarr_urls,
         zarr_dir=zarr_dir,
         reference_acquisition=reference_acquisition,
+    )
+
+
+if __name__ == "__main__":
+    from fractal_tasks_core.tasks._utils import run_fractal_task
+
+    run_fractal_task(
+        task_function=init_registration_hcs,
+        logger_name=logger.name,
     )
