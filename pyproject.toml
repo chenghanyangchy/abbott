@@ -5,14 +5,12 @@ build-backend = "hatchling.build"
 
 # https://hatch.pypa.io/latest/config/metadata/
 [tool.hatch.version]
-#path = "src/abbott/__init__.py"
 source = "vcs"
 
 # read more about configuring hatch at:
 # https://hatch.pypa.io/latest/config/build/
 [tool.hatch.build.targets.wheel]
-only-include = ["src"]
-sources = ["src"]
+packages = ["src/abbott"]
 
 
 # Project metadata (see https://peps.python.org/pep-0621)

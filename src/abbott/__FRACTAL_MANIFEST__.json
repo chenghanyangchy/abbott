@@ -2,7 +2,13 @@
   "manifest_version": "2",
   "task_list": [
     {
-      "name": "Compute Registration elastix",
+      "name": "Compute Registration (elastix)",
+      "category": "Registration",
+      "modality": "HCS",
+      "tags": [
+        "Multiplexing"
+      ],
+      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Processes images grouped by well, under the assumption that each well contains one image per acquisition.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.\n",
       "executable_parallel": "fractal_tasks/compute_registration_elastix.py",
       "meta_parallel": {
         "cpus_per_task": 4,
@@ -84,10 +90,16 @@
         "type": "object",
         "title": "ComputeRegistrationElastix"
       },
-      "docs_info": "## compute_registration_elastix\nCalculate registration based on images\n\nThis task consists of 3 parts:\n\n1. Loading the images of a given ROI (=> loop over ROIs)\n2. Calculating the transformation for that ROI\n3. Storing the calculated transformation in the ROI table\n"
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
-      "name": "Apply Registration elastix",
+      "name": "Apply Registration (elastix)",
+      "category": "Registration",
+      "modality": "HCS",
+      "tags": [
+        "Multiplexing"
+      ],
+      "docs_info": "### Purpose\n- **Applies pre-calculated registration** from `Compute Registration elastix` task to images in an **HCS** OME-Zarr dataset, aligning all acquisitions to a specified reference acquisition.\n- Replaces the non-aligned image with the newly aligned image in the dataset if `overwrite input` is selected.\n- Typically used as the second task in a workflow, following `Calculate Registration (elastix)`.\n\n### Limitations\n- If `overwrite input` is selected, the non-aligned image is permanently deleted, which may impact workflows requiring access to the original images.\n",
       "executable_parallel": "fractal_tasks/apply_registration_elastix.py",
       "meta_parallel": {
         "cpus_per_task": 1,
@@ -126,9 +138,10 @@
         "type": "object",
         "title": "ApplyRegistrationElastix"
       },
-      "docs_info": "## apply_registration_elastix\nApply registration to images by using a registered ROI table\n\nThis task consists of 4 parts:\n\n1. Mask all regions in images that are not available in the\nregistered ROI table and store each acquisition aligned to the\nreference_acquisition (by looping over ROIs).\n2. Do the same for all label images.\n3. Copy all tables from the non-aligned image to the aligned image\n(currently only works well if the only tables are well & FOV ROI tables\n(registered and original). Not implemented for measurement tables and\nother ROI tables).\n4. Clean up: Delete the old, non-aligned image and rename the new,\naligned image to take over its place.\n"
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     }
   ],
   "has_args_schemas": true,
-  "args_schema_version": "pydantic_v2"
+  "args_schema_version": "pydantic_v2",
+  "authors": "Ruth Hornbachner"
 }
