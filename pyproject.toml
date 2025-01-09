@@ -39,7 +39,7 @@ dependencies = [
 # Optional dependencies (e.g. for `pip install -e ".[dev]"`, see
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies)
 [project.optional-dependencies]
-dev = ["devtools", "hatch", "pytest", "requests", "jsonschema", "ruff", "pre-commit", "pooch"]
+dev = ["devtools", "hatch", "pytest", "requests", "jsonschema", "ruff", "pre-commit", "pooch", "pytest-cov"]
 
 # https://docs.astral.sh/ruff
 [tool.ruff]
