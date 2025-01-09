@@ -1,10 +1,11 @@
 """Contains the list of tasks available to fractal."""
 
-from fractal_tasks_core.dev.task_models import ParallelTask
+from fractal_tasks_core.dev.task_models import CompoundTask, ParallelTask
 
 TASK_LIST = [
-    ParallelTask(
+    CompoundTask(
         name="Compute Registration (elastix)",
+        executable_init="fractal_tasks/init_registration_hcs.py",
         executable="fractal_tasks/compute_registration_elastix.py",
         meta={"cpus_per_task": 4, "mem": 16000},
         category="Registration",
