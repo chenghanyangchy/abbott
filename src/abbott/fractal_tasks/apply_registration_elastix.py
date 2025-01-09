@@ -19,6 +19,7 @@ from typing import Callable
 
 import anndata as ad
 import dask.array as da
+import fsspec
 import numpy as np
 import zarr
 from fractal_tasks_core.ngff import load_NgffImageMeta
@@ -56,6 +57,7 @@ def apply_registration_elastix(
     roi_table: str,
     reference_acquisition: int = 0,
     overwrite_input: bool = True,
+    overwrite_output: bool = True,
 ):
     """Apply registration to images by using a registered ROI table
 
@@ -85,6 +87,9 @@ def apply_registration_elastix(
         overwrite_input: Whether the old image data should be replaced with the
             newly registered image data. Currently only implemented for
             `overwrite_input=True`.
+        overwrite_output: Whether pre-existing registered images (which will
+            be named "zarr_url" + _registered) should be overwritten by the
+            task.
 
     """
     logger.info(zarr_url)
@@ -94,22 +99,13 @@ def apply_registration_elastix(
         f"Using {overwrite_input=}"
     )
 
-    # FIXME: Make it stop early for reference cycle: Check if zarr_url points
-    # to reference_acq
-    # How do we handle the ref acq? If we were using overwrite, doing nothing
-    # is fine. But if we aren't we need to update its image list status
-    # 2 options:
-    # 1) Just update the image list status (=> no "non registered"
-    # version exists in the image list anymore
-    # 2) Create a copy of the reference cycle as well, just don't change the
-    # data
-    # Option 2 is cleaner, even though it leads to data duplication. To avoid
-    # that, a user can use overwriting
-
     well_url, old_img_path = _split_well_path_image_path(zarr_url)
-    new_zarr_url = f"{well_url}/{zarr_url.split('/')[-1]}_registered"
+    suffix = "registered"
+    new_zarr_url = f"{well_url}/{zarr_url.split('/')[-1]}_{suffix}"
     # Get the zarr_url for the reference acquisition
     acq_dict = load_NgffWellMeta(well_url).get_acquisition_paths()
+    logger.info(load_NgffWellMeta(well_url))
+    logger.info(acq_dict)
     if reference_acquisition not in acq_dict:
         raise ValueError(
             f"{reference_acquisition=} was not one of the available "
@@ -127,6 +123,42 @@ def apply_registration_elastix(
     else:
         ref_path = acq_dict[reference_acquisition][0]
     reference_zarr_url = f"{well_url}/{ref_path}"
+
+    # Get acquisition metadata of zarr_url
+    curr_acq = get_acquisition_of_zarr_url(well_url, old_img_path)
+
+    # Special handling for the reference acquisition
+    # if acq_dict[zarr_url] == reference_zarr_url:
+    if curr_acq == reference_acquisition:
+        if overwrite_input:
+            # If the input is to be overwritten, nothing needs to happen. The
+            # reference acquisition stays as is and due to the output type set
+            # in the image list, the type of that OME-Zarr is updated
+            return
+        else:
+            # If the input is not overwritten, a copy of the reference
+            # OME-Zarr image needs to be created which has the new name & new
+            # metadata. It contains the same data as the original reference
+            # image.
+            generate_copy_of_reference_acquisition(
+                zarr_url=zarr_url,
+                new_zarr_url=new_zarr_url,
+                overwrite=overwrite_output,
+            )
+            image_list_updates = dict(
+                image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]
+            )
+            # Update the metadata of the the well
+            well_url, new_img_path = _split_well_path_image_path(new_zarr_url)
+            try:
+                _update_well_metadata(
+                    well_url=well_url,
+                    old_image_path=old_img_path,
+                    new_image_path=new_img_path,
+                )
+            except ValueError:
+                logger.warning(f"{new_zarr_url} was already listed in well metadata")
+            return image_list_updates
 
     ROI_table_acq = ad.read_zarr(f"{zarr_url}/tables/{roi_table}")
 
@@ -146,6 +178,7 @@ def apply_registration_elastix(
         num_levels=num_levels,
         coarsening_xy=coarsening_xy,
         aggregation_function=np.mean,
+        overwrite=overwrite_output,
     )
 
     ####################
@@ -178,6 +211,7 @@ def apply_registration_elastix(
                 num_levels=num_levels,
                 coarsening_xy=coarsening_xy,
                 aggregation_function=np.max,
+                overwrite=overwrite_output,
             )
 
     ####################
@@ -254,18 +288,21 @@ def apply_registration_elastix(
         os.rename(zarr_url, f"{zarr_url}_tmp")
         os.rename(new_zarr_url, zarr_url)
         shutil.rmtree(f"{zarr_url}_tmp")
-        image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])  # noqa C408
+        image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
     else:
-        image_list_updates = dict(  # noqa C408
-            image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]  # noqa C408
+        image_list_updates = dict(
+            image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]
         )
         # Update the metadata of the the well
         well_url, new_img_path = _split_well_path_image_path(new_zarr_url)
-        _update_well_metadata(
-            well_url=well_url,
-            old_image_path=old_img_path,
-            new_image_path=new_img_path,
-        )
+        try:
+            _update_well_metadata(
+                well_url=well_url,
+                old_image_path=old_img_path,
+                new_image_path=new_img_path,
+            )
+        except ValueError:
+            logger.warning(f"{new_zarr_url} was already listed in well metadata")
 
     return image_list_updates
 
@@ -278,6 +315,7 @@ def write_registered_zarr(
     num_levels: int,
     coarsening_xy: int = 2,
     aggregation_function: Callable = np.mean,
+    overwrite: bool = True,
 ):
     """Write registered zarr array based on ROI tables
 
@@ -301,6 +339,8 @@ def write_registered_zarr(
         coarsening_xy: Coarsening factor between pyramid levels
         aggregation_function: Function to be used when downsampling (argument
             of `build_pyramid`).
+        overwrite: Whether an existing zarr at new_zarr_url should be
+            overwritten.
 
     """
     # Read pixel sizes from Zarr attributes
@@ -314,12 +354,6 @@ def write_registered_zarr(
         coarsening_xy=coarsening_xy,
         full_res_pxl_sizes_zyx=pxl_sizes_zyx,
     )
-    # list_indices_ref = convert_ROI_table_to_indices(
-    #     ROI_table_ref,
-    #     level=0,
-    #     coarsening_xy=coarsening_xy,
-    #     full_res_pxl_sizes_zyx=pxl_sizes_zyx,
-    # )
 
     old_image_group = zarr.open_group(zarr_url, mode="r")
     old_ngff_image_meta = load_NgffImageMeta(zarr_url)
@@ -334,7 +368,7 @@ def write_registered_zarr(
         chunks=data_array.chunksize,
         dtype=data_array.dtype,
         store=zarr.storage.FSStore(f"{new_zarr_url}/0"),
-        overwrite=True,  # FIXME: Overwrite preexisting output?
+        overwrite=overwrite,
         dimension_separator="/",
     )
 
@@ -436,6 +470,59 @@ def write_registered_zarr(
         chunksize=data_array.chunksize,
         aggregation_function=aggregation_function,
     )
+
+
+def generate_copy_of_reference_acquisition(
+    zarr_url: str,
+    new_zarr_url: str,
+    overwrite: bool = True,
+):
+    """Generate a copy of an existing OME-Zarr with all its components
+
+    Args:
+        zarr_url: Path to the existing zarr image
+        new_zarr_url: Path to the to be created zarr image
+        overwrite: Whether to overwrite a preexisting new_zarr_url
+    """
+    # Get filesystem and paths for source and destination
+    source_fs, source_path = fsspec.core.url_to_fs(zarr_url)
+    dest_fs, dest_path = fsspec.core.url_to_fs(new_zarr_url)
+
+    # Check if the source exists
+    if not source_fs.exists(source_path):
+        raise FileNotFoundError(f"The source Zarr URL '{zarr_url}' does not exist.")
+
+    # Handle overwrite option
+    if dest_fs.exists(dest_path):
+        if overwrite:
+            dest_fs.delete(dest_path, recursive=True)
+        else:
+            raise FileExistsError(
+                f"The destination Zarr URL '{new_zarr_url}' already exists."
+            )
+
+    # Copy the source to the destination
+    source_fs.copy(source_path, dest_path, recursive=True)
+
+    # Verify the copied Zarr structure
+    try:
+        zarr.open_group(source_fs.get_mapper(source_path), mode="r")
+        zarr.open_group(dest_fs.get_mapper(dest_path), mode="r")
+    except Exception as e:
+        raise RuntimeError(f"Failed to verify the copied Zarr structure: {e}") from e
+
+
+def get_acquisition_of_zarr_url(well_url, image_name):
+    """Get the acquisition of a given zarr_url
+
+    Args:
+        well_url: Url of the HCS plate well
+        image_name: Name of the acquisition image
+    """
+    well_meta = load_NgffWellMeta(well_url)
+    for image in well_meta.well.images:
+        if image.path == image_name:
+            return image.acquisition
 
 
 if __name__ == "__main__":

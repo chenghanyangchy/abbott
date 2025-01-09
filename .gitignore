@@ -110,3 +110,6 @@ ENV/
 # IDE settings
 .vscode/
 .idea/
+
+# Test data loaded via pooch
+tests/data/10_5281_zenodo_14617240/
