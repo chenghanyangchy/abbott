@@ -14,7 +14,9 @@ TASK_LIST = [
     ),
     ParallelTask(
         name="Apply Registration (elastix)",
+        input_types=dict(registered=False),
         executable="fractal_tasks/apply_registration_elastix.py",
+        output_types=dict(registered=True),
         meta={"cpus_per_task": 1, "mem": 4000},
         category="Registration",
         modality="HCS",

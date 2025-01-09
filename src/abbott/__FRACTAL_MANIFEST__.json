@@ -94,6 +94,12 @@
     },
     {
       "name": "Apply Registration (elastix)",
+      "input_types": {
+        "registered": false
+      },
+      "output_types": {
+        "registered": true
+      },
       "category": "Registration",
       "modality": "HCS",
       "tags": [
@@ -129,6 +135,12 @@
             "title": "Overwrite Input",
             "type": "boolean",
             "description": "Whether the old image data should be replaced with the newly registered image data. Currently only implemented for `overwrite_input=True`."
+          },
+          "overwrite_output": {
+            "default": true,
+            "title": "Overwrite Output",
+            "type": "boolean",
+            "description": "Whether pre-existing registered images (which will be named \"zarr_url\" + _registered) should be overwritten by the task."
           }
         },
         "required": [

@@ -2,6 +2,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import zarr
 from devtools import debug
 
 from abbott.fractal_tasks.apply_registration_elastix import apply_registration_elastix
@@ -54,12 +55,60 @@ def test_registration_workflow(test_data_dir):
             level=level,
         )
 
-    # FIXME: Make this run on all zarr_urls once the task supports this
+    # Test zarr_url that needs to be registered
     apply_registration_elastix(
-        # Fractal parameters
         zarr_url=zarr_urls[1],
-        # Core parameters
         roi_table=roi_table,
         reference_acquisition=reference_acquisition,
         overwrite_input=False,
     )
+    new_zarr_url = f"{zarr_urls[1]}_registered"
+    zarr.open_group(new_zarr_url, mode="r")
+
+    # Test reference zarr
+    apply_registration_elastix(
+        zarr_url=zarr_urls[0],
+        roi_table=roi_table,
+        reference_acquisition=reference_acquisition,
+        overwrite_input=False,
+    )
+    new_zarr_url = f"{zarr_urls[0]}_registered"
+    zarr.open_group(new_zarr_url, mode="r")
+
+    # Test overwrite output False on reference image
+    with pytest.raises(FileExistsError):
+        apply_registration_elastix(
+            zarr_url=zarr_urls[0],
+            roi_table=roi_table,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=False,
+            overwrite_output=False,
+        )
+
+    # Test overwrite output False on non reference image
+    with pytest.raises(zarr.errors.ContainsArrayError):
+        apply_registration_elastix(
+            zarr_url=zarr_urls[1],
+            roi_table=roi_table,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=False,
+            overwrite_output=False,
+        )
+
+    # Pre-existing output can be overwritten
+    for zarr_url in zarr_urls:
+        apply_registration_elastix(
+            zarr_url=zarr_url,
+            roi_table=roi_table,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=False,
+            overwrite_output=True,
+        )
+
+    for zarr_url in zarr_urls:
+        apply_registration_elastix(
+            zarr_url=zarr_url,
+            roi_table=roi_table,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=True,
+        )
