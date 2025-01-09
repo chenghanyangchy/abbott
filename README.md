@@ -9,9 +9,23 @@
 
 | Task | Description | Passing |
 | --- | --- | --- |
-| Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.|x|
-| Calculate ITK Elastix Registration | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis.|x|
+| Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.| WIP |
+| Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis.|x|
+| Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|x|
 
 ## Installation
 
-TBD
+To install this task package on a Fractal server, get the whl in the Github release and use the local task collection.
+To install this package locally:
+```
+git clone https://github.com/pelkmanslab/abbott
+cd abbott
+pip install -e .
+```
+
+For development:
+```
+git clone https://github.com/pelkmanslab/abbott
+cd abbott
+pip install -e ".[dev]"
+```
