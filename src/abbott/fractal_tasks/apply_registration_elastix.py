@@ -407,16 +407,11 @@ def write_registered_zarr(
                     ),
                     scale=tuple(pxl_sizes_zyx),
                 )
-                # Mess with parameter files to fix issue #10
-                # https://github.com/pelkmanslab/abbott/issues/10
-                for i in range(parameter_object.GetNumberOfParameterMaps()):
-                    itk_spacing = tuple([str(x) for x in itk_img.GetSpacing()])
-                    itk_size = tuple(
-                        [str(x) for x in itk_img.GetRequestedRegion().GetSize()]
-                    )
-                    parameter_object.SetParameter(i, "Spacing", itk_spacing)
-                    parameter_object.SetParameter(i, "Size", itk_size)
 
+                parameter_object = adapt_itk_params(
+                    parameter_object=parameter_object,
+                    itk_img=itk_img,
+                )
                 registered_roi = apply_transform(
                     itk_img,
                     parameter_object,
@@ -438,6 +433,10 @@ def write_registered_zarr(
             itk_img = to_itk(
                 load_region(data_zyx=data_array[ind_ch], region=region, compute=True),
                 scale=tuple(pxl_sizes_zyx),
+            )
+            parameter_object = adapt_itk_params(
+                parameter_object=parameter_object,
+                itk_img=itk_img,
             )
             registered_roi = apply_transform(
                 itk_img,
@@ -482,6 +481,26 @@ def write_registered_zarr(
         chunksize=data_array.chunksize,
         aggregation_function=aggregation_function,
     )
+
+
+def adapt_itk_params(parameter_object, itk_img):
+    """Updates spacing & size settings in the parameter object
+
+    This is needed to address https://github.com/pelkmanslab/abbott/issues/10
+    This ensures that applying the transformation will output an image in the
+    input resolution (instead of the transform resolution)
+
+    Args:
+        parameter_object: ITK parameter object
+        itk_img: ITK image that will be registered
+
+    """
+    for i in range(parameter_object.GetNumberOfParameterMaps()):
+        itk_spacing = tuple([str(x) for x in itk_img.GetSpacing()])
+        itk_size = tuple([str(x) for x in itk_img.GetRequestedRegion().GetSize()])
+        parameter_object.SetParameter(i, "Spacing", itk_spacing)
+        parameter_object.SetParameter(i, "Size", itk_size)
+    return parameter_object
 
 
 def generate_copy_of_reference_acquisition(
