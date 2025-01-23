@@ -2,20 +2,25 @@ name: CI (build and test)
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+    tags:
+      - "*"
   pull_request:
-    branches: ["main"]
+  workflow_dispatch:
+  release:
+    types: [published]
 
 
 jobs:
   tests:
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
-        exclude:
-          - os: macos-latest
-            python-version: '3.10'
+        os: [ubuntu-22.04] #, macos-latest
+        python-version: ["3.10"] #, "3.11", "3.12"
+        # exclude:
+        #   - os: macos-latest
+        #     python-version: '3.10'
     name: "Core, Python ${{ matrix.python-version }}, ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
@@ -46,5 +51,57 @@ jobs:
             echo "__FRACTAL_MANIFEST__.json has not changed."
           fi
 
+      - name: Cache Pooch folder
+        id: cache-pooch-folder
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pooch
+          key: pooch-cache
+
       - name: Test core library with pytest
-        run: python -m pytest tests
+        run: python -m pytest --cov=src --cov-report=xml --cov-report=term tests 
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  deploy:
+    name: Deploy
+    needs: tests
+    if: success() && startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing on PyPi
+      # see https://docs.pypi.org/trusted-publishers/
+      id-token: write
+      # This permission allows writing releases
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: 👷 Build
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: 🚢 Publish to PyPI
+        # TODO remove the "if: false" line when the package is ready for pypi release
+        if: false
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: './dist/*'

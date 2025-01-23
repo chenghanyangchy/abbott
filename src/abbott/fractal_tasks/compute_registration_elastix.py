@@ -146,10 +146,12 @@ def compute_registration_elastix(
 
     # Read pixel sizes from zarr attributes
     ngff_image_meta_acq_x = load_NgffImageMeta(zarr_url)
-    pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=0)
-    pxl_sizes_zyx_acq_x = ngff_image_meta_acq_x.get_pixel_sizes_zyx(level=0)
+    pxl_sizes_zyx_full_res = ngff_image_meta.get_pixel_sizes_zyx(level=0)
+    pxl_sizes_zyx_acq_x_full_res = ngff_image_meta_acq_x.get_pixel_sizes_zyx(level=0)
+    pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=level)
+    pxl_sizes_zyx_acq_x = ngff_image_meta_acq_x.get_pixel_sizes_zyx(level=level)
 
-    if pxl_sizes_zyx != pxl_sizes_zyx_acq_x:
+    if pxl_sizes_zyx_full_res != pxl_sizes_zyx_acq_x_full_res:
         raise ValueError(
             "Pixel sizes need to be equal between acquisitions for " "registration."
         )
@@ -159,7 +161,7 @@ def compute_registration_elastix(
         ROI_table_ref,
         level=level,
         coarsening_xy=coarsening_xy,
-        full_res_pxl_sizes_zyx=pxl_sizes_zyx,
+        full_res_pxl_sizes_zyx=pxl_sizes_zyx_full_res,
     )
     check_valid_ROI_indices(list_indices_ref, roi_table)
 
@@ -167,7 +169,7 @@ def compute_registration_elastix(
         ROI_table_x,
         level=level,
         coarsening_xy=coarsening_xy,
-        full_res_pxl_sizes_zyx=pxl_sizes_zyx,
+        full_res_pxl_sizes_zyx=pxl_sizes_zyx_acq_x_full_res,
     )
     check_valid_ROI_indices(list_indices_acq_x, roi_table)
 

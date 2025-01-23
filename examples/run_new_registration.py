@@ -10,8 +10,13 @@ from abbott.fractal_tasks.init_registration_hcs import init_registration_hcs
 def test_registration_workflow():
     """Test abbott registration workflow"""
     # TODO: Make path relative
+    # parameter_files = [
+    #     "/Users/joel/Documents/Code/abbott/tests/data/params_translation_level0.txt"
+    # ]
     parameter_files = [
-        "/Users/joel/Documents/Code/abbott/tests/data/params_translation_level0.txt"
+        "/Users/joel/Documents/Code/abbott/tests/data/params_rigid.txt",
+        "/Users/joel/Documents/Code/abbott/tests/data/params_affine.txt",
+        "/Users/joel/Documents/Code/abbott/tests/data/bspline_lvl2.txt",
     ]
     # Task-specific arguments
     wavelength_id = "A01_C01"
