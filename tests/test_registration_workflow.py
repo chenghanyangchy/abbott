@@ -112,3 +112,46 @@ def test_registration_workflow(test_data_dir):
             reference_acquisition=reference_acquisition,
             overwrite_input=True,
         )
+
+
+def test_registration_workflow_varying_levels(test_data_dir):
+    parameter_files = [
+        str(Path(__file__).parent / "data/params_rigid.txt"),
+        str(Path(__file__).parent / "data/params_affine.txt"),
+        str(Path(__file__).parent / "data/bspline_lvl2.txt"),
+    ]
+    # Task-specific arguments
+    wavelength_id = "A01_C01"
+    roi_table = "FOV_ROI_table"
+    level = 1
+    reference_acquisition = 19
+    zarr_urls = [f"{test_data_dir}/B/02/0", f"{test_data_dir}/B/02/1"]
+
+    parallelization_list = init_registration_hcs(
+        zarr_urls=zarr_urls,
+        zarr_dir="",
+        reference_acquisition=reference_acquisition,
+    )["parallelization_list"]
+    print(parallelization_list)
+
+    for param in parallelization_list:
+        compute_registration_elastix(
+            zarr_url=param["zarr_url"],
+            init_args=param["init_args"],
+            wavelength_id=wavelength_id,
+            roi_table=roi_table,
+            lower_rescale_quantile=0.0,
+            upper_rescale_quantile=0.99,
+            parameter_files=parameter_files,
+            level=level,
+        )
+
+    # Test zarr_url that needs to be registered
+    apply_registration_elastix(
+        zarr_url=zarr_urls[1],
+        roi_table=roi_table,
+        reference_acquisition=reference_acquisition,
+        overwrite_input=False,
+    )
+    new_zarr_url = f"{zarr_urls[1]}_registered"
+    zarr.open_group(new_zarr_url, mode="r")
