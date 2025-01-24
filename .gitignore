@@ -111,9 +111,6 @@ ENV/
 .vscode/
 .idea/
 
-<<<<<<< HEAD
+*.zarr
 # Test data loaded via pooch
 tests/data/10_5281_zenodo_14617240/
-=======
-*.zarr
->>>>>>> 4b9aa8b (cellvoyager multiplex init extend)

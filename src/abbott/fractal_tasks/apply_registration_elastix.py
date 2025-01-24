@@ -344,15 +344,17 @@ def write_registered_zarr(
 
     """
     # Read pixel sizes from Zarr attributes
+    level = 0  # FIXME: Expose this to the user
     ngff_image_meta = load_NgffImageMeta(zarr_url)
-    pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=0)
+    pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=level)
+    pxl_sizes_zyx_full_res = ngff_image_meta.get_pixel_sizes_zyx(level=0)
 
     # Create list of indices for 3D ROIs
     list_indices = convert_ROI_table_to_indices(
         ROI_table,
-        level=0,
+        level=level,
         coarsening_xy=coarsening_xy,
-        full_res_pxl_sizes_zyx=pxl_sizes_zyx,
+        full_res_pxl_sizes_zyx=pxl_sizes_zyx_full_res,
     )
 
     old_image_group = zarr.open_group(zarr_url, mode="r")
@@ -361,7 +363,7 @@ def write_registered_zarr(
     new_image_group.attrs.put(old_image_group.attrs.asdict())
 
     # Loop over all channels. For each channel, write full-res image data.
-    data_array = da.from_zarr(old_image_group["0"])
+    data_array = da.from_zarr(old_image_group[str(level)])
 
     new_zarr_array = zarr.create(
         shape=data_array.shape,
@@ -405,6 +407,11 @@ def write_registered_zarr(
                     ),
                     scale=tuple(pxl_sizes_zyx),
                 )
+
+                parameter_object = adapt_itk_params(
+                    parameter_object=parameter_object,
+                    itk_img=itk_img,
+                )
                 registered_roi = apply_transform(
                     itk_img,
                     parameter_object,
@@ -426,6 +433,10 @@ def write_registered_zarr(
             itk_img = to_itk(
                 load_region(data_zyx=data_array[ind_ch], region=region, compute=True),
                 scale=tuple(pxl_sizes_zyx),
+            )
+            parameter_object = adapt_itk_params(
+                parameter_object=parameter_object,
+                itk_img=itk_img,
             )
             registered_roi = apply_transform(
                 itk_img,
@@ -470,6 +481,26 @@ def write_registered_zarr(
         chunksize=data_array.chunksize,
         aggregation_function=aggregation_function,
     )
+
+
+def adapt_itk_params(parameter_object, itk_img):
+    """Updates spacing & size settings in the parameter object
+
+    This is needed to address https://github.com/pelkmanslab/abbott/issues/10
+    This ensures that applying the transformation will output an image in the
+    input resolution (instead of the transform resolution)
+
+    Args:
+        parameter_object: ITK parameter object
+        itk_img: ITK image that will be registered
+
+    """
+    for i in range(parameter_object.GetNumberOfParameterMaps()):
+        itk_spacing = tuple([str(x) for x in itk_img.GetSpacing()])
+        itk_size = tuple([str(x) for x in itk_img.GetRequestedRegion().GetSize()])
+        parameter_object.SetParameter(i, "Spacing", itk_spacing)
+        parameter_object.SetParameter(i, "Size", itk_size)
+    return parameter_object
 
 
 def generate_copy_of_reference_acquisition(
