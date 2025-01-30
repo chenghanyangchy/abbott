@@ -431,7 +431,7 @@ def write_registered_zarr(
         elif axes_list == ["z", "y", "x"]:
             # Define region
             itk_img = to_itk(
-                load_region(data_zyx=data_array[ind_ch], region=region, compute=True),
+                load_region(data_zyx=data_array, region=region, compute=True),
                 scale=tuple(pxl_sizes_zyx),
             )
             parameter_object = adapt_itk_params(

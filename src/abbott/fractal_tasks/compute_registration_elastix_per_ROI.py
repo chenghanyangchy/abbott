@@ -1,5 +1,5 @@
 # Based on https://github.com/MaksHess/abbott
-"""Calculates translation for image-based registration."""
+"""Computes transforms for elastix image-based registration."""
 
 import logging
 from pathlib import Path
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @validate_call
-def compute_registration_elastix(
+def compute_registration_elastix_per_ROI(
     *,
     # Fractal arguments
     zarr_url: str,
@@ -37,15 +37,17 @@ def compute_registration_elastix(
     parameter_files: list[str],
     lower_rescale_quantile: float = 0.0,
     upper_rescale_quantile: float = 0.99,
-    roi_table: str = "FOV_ROI_table",  # TODO: allow "emb_ROI_table"
+    label_name: str = "emb_linked",
+    roi_table: str = "emb_ROI_table",
     level: int = 2,
 ) -> None:
     """Calculate registration based on images
 
     This task consists of 3 parts:
 
-    1. Loading the images of a given ROI (=> loop over ROIs)
-    2. Calculating the transformation for that ROI
+    1. Loading the images and labels of a given ROI (=> loop over embryo ROIs)
+    2. Masking the images outside of the ROI
+    2. Calculating the transformation for each ROI
     3. Storing the calculated transformation in the ROI table
 
     Args:
@@ -64,30 +66,31 @@ def compute_registration_elastix(
         upper_rescale_quantile: Upper quantile for rescaling the image
             intensities before applying registration. Can be helpful
             to deal with image artifacts. Default is 0.99.
-        roi_table: Name of the ROI table over which the task loops to
-            calculate the registration. Examples: `FOV_ROI_table` => loop over
-            the field of views, `well_ROI_table` => process the whole well as
-            one image.
+        label_name: Label name of segmented embryo that will be used as
+            ROI for registration e.g. 'emb_linked'.
+        roi_table: Name of the ROI table for which registrations
+            have been calculated using the Compute Registration Elastix task.
+            Examples: `emb_ROI_table` => loop over each ROI per FOV.
         level: Pyramid level of the image to be used for registration.
             Choose `0` to process at full resolution.
 
     """
     logger.info(
         f"Running for {zarr_url=}.\n"
-        f"Calculating translation registration per {roi_table=} for "
+        f"Calculating registration per {roi_table=} for "
         f"{wavelength_id=}."
     )
 
-    init_args.reference_zarr_url = init_args.reference_zarr_url
+    reference_zarr_url = init_args.reference_zarr_url
 
     # Read some parameters from Zarr metadata
-    ngff_image_meta = load_NgffImageMeta(str(init_args.reference_zarr_url))
+    ngff_image_meta = load_NgffImageMeta(str(reference_zarr_url))
     coarsening_xy = ngff_image_meta.coarsening_xy
 
     # Get channel_index via wavelength_id.
     # Intially only allow registration of the same wavelength
     channel_ref: OmeroChannel = get_channel_from_image_zarr(
-        image_zarr_path=init_args.reference_zarr_url,
+        image_zarr_path=reference_zarr_url,
         wavelength_id=wavelength_id,
     )
     channel_index_ref = channel_ref.index
@@ -98,17 +101,27 @@ def compute_registration_elastix(
     )
     channel_index_align = channel_align.index
 
-    # Lazily load zarr array
-    data_reference_zyx = da.from_zarr(f"{init_args.reference_zarr_url}/{level}")[
+    # Lazily load zarr array (imgs and lbls)
+    data_reference_zyx = da.from_zarr(f"{reference_zarr_url}/{level}")[
         channel_index_ref
     ]
     data_alignment_zyx = da.from_zarr(f"{zarr_url}/{level}")[channel_index_align]
 
-    # Read ROIs
-    ROI_table_ref = ad.read_zarr(f"{init_args.reference_zarr_url}/tables/{roi_table}")
-    ROI_table_x = ad.read_zarr(f"{zarr_url}/tables/{roi_table}")
-    logger.info(f"Found {len(ROI_table_x)} ROIs in {roi_table=} to be processed.")
+    lbls_reference_zyx = da.from_zarr(
+        f"{reference_zarr_url}/labels/{label_name}/{level}"
+    )
+    lbls_alignment_zyx = da.from_zarr(f"{zarr_url}/labels/{label_name}/{level}")
 
+    # Read ROIs
+    ROI_table_ref = ad.read_zarr(f"{reference_zarr_url}/tables/{roi_table}")
+    ROI_table_x = ad.read_zarr(f"{zarr_url}/tables/{roi_table}")
+    logger.info(
+        f"Found {len(ROI_table_ref)} ROIs in reference and "
+        f"{len(ROI_table_x)} ROIs in alignment cycle for registration from "
+        f"{roi_table=} to be processed."
+    )
+
+    ROI_lbl_ids = ROI_table_x.obs["label"].values
     # Check that table type of ROI_table_ref is valid. Note that
     # "ngff:region_table" and None are accepted for backwards compatibility
     valid_table_types = [
@@ -118,7 +131,7 @@ def compute_registration_elastix(
         None,
     ]
     ROI_table_ref_group = zarr.open_group(
-        f"{init_args.reference_zarr_url}/tables/{roi_table}",
+        f"{reference_zarr_url}/tables/{roi_table}",
         mode="r",
     )
     ref_table_attrs = ROI_table_ref_group.attrs.asdict()
@@ -130,6 +143,8 @@ def compute_registration_elastix(
         )
 
     # For each acquisition, get the relevant info
+    # Currently indeces between acquisitions should match due to relabeling
+    # of lbls by linking consensus
     # TODO: Add additional checks on ROIs?
     if (ROI_table_ref.obs.index != ROI_table_x.obs.index).all():
         raise ValueError(
@@ -138,13 +153,9 @@ def compute_registration_elastix(
             f"reference acquisitions were {ROI_table_ref.obs.index}, but the "
             f"ROIs in the alignment acquisition were {ROI_table_x.obs.index}"
         )
-    # TODO: Make this less restrictive? i.e. could we also run it if different
-    # acquisitions have different FOVs? But then how do we know which FOVs to
-    # match?
-    # If we relax this, downstream assumptions on matching based on order
-    # in the list will break.
 
-    # Read pixel sizes from zarr attributes
+    # Read pixel sizes from zarr attributes #FIXME: Check if it is correct
+    # that it is always calculated at level 0
     ngff_image_meta_acq_x = load_NgffImageMeta(zarr_url)
     pxl_sizes_zyx_full_res = ngff_image_meta.get_pixel_sizes_zyx(level=0)
     pxl_sizes_zyx_acq_x_full_res = ngff_image_meta_acq_x.get_pixel_sizes_zyx(level=0)
@@ -153,7 +164,7 @@ def compute_registration_elastix(
 
     if pxl_sizes_zyx_full_res != pxl_sizes_zyx_acq_x_full_res:
         raise ValueError(
-            "Pixel sizes need to be equal between acquisitions for " "registration."
+            "Pixel sizes need to be equal between acquisitions for registration."
         )
 
     # Create list of indices for 3D ROIs spanning the entire Z direction
@@ -173,50 +184,77 @@ def compute_registration_elastix(
     )
     check_valid_ROI_indices(list_indices_acq_x, roi_table)
 
-    num_ROIs = len(list_indices_ref)
+    print(f"ROI lbl ids: {ROI_lbl_ids}")
+
     compute = True
-    for i_ROI in range(num_ROIs):
+    for i, ROI_lbl_id in enumerate(
+        ROI_lbl_ids
+    ):  # FIXME: assumes that ROI_lbl_ids are saved in ascending order in
+        # the ROI table - implement validation?
         logger.info(
-            f"Now processing ROI {i_ROI+1}/{num_ROIs} " f"for channel {channel_align}."
+            f"Now processing ROI {i+1}/{len(ROI_lbl_ids)} "
+            f"for channel {channel_align}."
         )
         img_ref = load_region(
             data_zyx=data_reference_zyx,
-            region=convert_indices_to_regions(list_indices_ref[i_ROI]),
-            compute=compute,
-        )
-        img_acq_x = load_region(
-            data_zyx=data_alignment_zyx,
-            region=convert_indices_to_regions(list_indices_acq_x[i_ROI]),
+            region=convert_indices_to_regions(list_indices_ref[i]),
             compute=compute,
         )
 
+        img_acq_x = load_region(
+            data_zyx=data_alignment_zyx,
+            region=convert_indices_to_regions(list_indices_acq_x[i]),
+            compute=compute,
+        )
+        lbl_ref = load_region(
+            data_zyx=lbls_reference_zyx,
+            region=convert_indices_to_regions(list_indices_ref[i]),
+            compute=compute,
+        )
+        lbl_acq_x = load_region(
+            data_zyx=lbls_alignment_zyx,
+            region=convert_indices_to_regions(list_indices_acq_x[i]),
+            compute=compute,
+        )
+
+        # Mask images outside of ROI_lbl
+        img_ref_masked = img_ref.copy()
+        img_acq_x_masked = img_acq_x.copy()
+
+        img_ref_masked[lbl_ref != int(ROI_lbl_id)] = 0
+        img_acq_x_masked[lbl_acq_x != int(ROI_lbl_id)] = 0
+
         # Rescale the images
-        img_ref = rescale_intensity(
-            img_ref,
+        img_ref_masked = rescale_intensity(
+            img_ref_masked,
             in_range=(
-                np.quantile(img_ref, lower_rescale_quantile),
-                np.quantile(img_ref, upper_rescale_quantile),
+                np.quantile(img_ref_masked, lower_rescale_quantile),
+                np.quantile(img_ref_masked, upper_rescale_quantile),
             ),
         )
-        img_acq_x = rescale_intensity(
-            img_acq_x,
+        img_acq_x_masked = rescale_intensity(
+            img_acq_x_masked,
             in_range=(
-                np.quantile(img_acq_x, lower_rescale_quantile),
-                np.quantile(img_acq_x, upper_rescale_quantile),
+                np.quantile(img_acq_x_masked, lower_rescale_quantile),
+                np.quantile(img_acq_x_masked, upper_rescale_quantile),
             ),
         )
+
+        # Calculate maximum dimensions needed
+        max_shape = tuple(
+            max(r, m) for r, m in zip(img_ref_masked.shape, img_acq_x_masked.shape)
+        )
+
+        # Pad both arrays to maximum shape
+        img_ref_masked = pad_to_max_shape(img_ref_masked, max_shape)
+        img_acq_x_masked = pad_to_max_shape(img_acq_x_masked, max_shape)
 
         ##############
         #  Calculate the transformation
         ##############
-        if img_ref.shape != img_acq_x.shape:
-            raise NotImplementedError(
-                "This registration is not implemented for ROIs with "
-                "different shapes between acquisitions."
-            )
 
-        ref = to_itk(img_ref, scale=tuple(pxl_sizes_zyx))
-        move = to_itk(img_acq_x, scale=tuple(pxl_sizes_zyx_acq_x))
+        ref = to_itk(img_ref_masked, scale=tuple(pxl_sizes_zyx))
+        move = to_itk(img_acq_x_masked, scale=tuple(pxl_sizes_zyx_acq_x))
         trans = register_transform_only(ref, move, parameter_files)
 
         # Write transform parameter files
@@ -224,16 +262,33 @@ def compute_registration_elastix(
         # FIXME: Figure out where to put files
         for i in range(trans.GetNumberOfParameterMaps()):
             trans_map = trans.GetParameterMap(i)
-            # FIXME: Switch from ROI index to ROI names?
-            fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{i_ROI}_t{i}.txt")
+            fn = (
+                Path(zarr_url)
+                / "registration"
+                / (f"{roi_table}_roi_{ROI_lbl_id}_t{i}.txt")
+            )
             fn.parent.mkdir(exist_ok=True, parents=True)
             trans.WriteParameterFile(trans_map, fn.as_posix())
+
+
+def pad_to_max_shape(array, target_shape):
+    """Pad array to match target shape, handling mixed larger/smaller dimensions."""
+    pad_width = []
+    for arr_dim, target_dim in zip(array.shape, target_shape):
+        diff = target_dim - arr_dim
+        if diff > 0:  # array dimension is smaller
+            pad_before = diff // 2
+            pad_after = diff - pad_before
+            pad_width.append((pad_before, pad_after))
+        else:  # array dimension is larger or equal
+            pad_width.append((0, 0))
+    return np.pad(array, pad_width)
 
 
 if __name__ == "__main__":
     from fractal_tasks_core.tasks._utils import run_fractal_task
 
     run_fractal_task(
-        task_function=compute_registration_elastix,
+        task_function=compute_registration_elastix_per_ROI,
         logger_name=logger.name,
     )
