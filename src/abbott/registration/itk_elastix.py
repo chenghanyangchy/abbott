@@ -5,7 +5,6 @@ Based on: https://github.com/MaksHess/abbott/blob/main/src/abbott/registration/i
 """
 
 from collections.abc import Sequence
-from typing import tuple
 
 import itk
 
