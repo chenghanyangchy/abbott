@@ -1,7 +1,10 @@
-# Based on https://github.com/MaksHess/abbott/blob/main/src/abbott/registration/itk_elastix.py
-# Original author: Max Hess
+"""ITK elastix registration functions.
+
+Original author: Max Hess
+Based on: https://github.com/MaksHess/abbott/blob/main/src/abbott/registration/itk_elastix.py
+"""
+
 from collections.abc import Sequence
-from typing import Tuple
 
 import itk
 
@@ -28,7 +31,7 @@ def register(
     parameter_files: Sequence[str],
     fixed_mask: itk.Image = None,
     moving_mask: itk.Image = None,
-) -> Tuple[itk.Image, itk.ParameterObject]:
+) -> tuple[itk.Image, itk.ParameterObject]:
     """Register an image and apply the resulting transform.
 
     Args:
@@ -52,7 +55,7 @@ def register(
     if moving_mask is not None:
         elastix_object.SetMovingMask(moving_mask)
     elastix_object.SetParameterObject(parameter_object)
-    elastix_object.SetLogToConsole(True)
+    elastix_object.SetLogToConsole(False)
     elastix_object.UpdateLargestPossibleRegion()
 
     out = elastix_object.GetOutput()
@@ -90,7 +93,7 @@ def register_transform_only(
     if moving_mask is not None:
         elastix_object.SetMovingMask(moving_mask)
     elastix_object.SetParameterObject(parameter_object)
-    elastix_object.SetLogToConsole(True)
+    elastix_object.SetLogToConsole(False)
     elastix_object.UpdateLargestPossibleRegion()
 
     trans = elastix_object.GetTransformParameterObject()
