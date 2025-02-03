@@ -177,11 +177,11 @@ def test_registration_workflow_ROI():
     level = 2
     reference_acquisition = 0
     fld = """/Volumes/active/rhornb/fractal/74_tiny_mouseembryo_dataset/
-    397__data_active_rhornb_fractal_testing_embryo/"""
+    446__data_active_rhornb_202404_realembryos_e55_65_multiplexing/"""
 
     zarr_urls = [
-        f"{fld}/AssayPlate_Greiner_#655090.zarr/E/02/0",
-        f"{fld}/AssayPlate_Greiner_#655090.zarr/E/02/1",
+        f"{fld}/AssayPlate_Greiner_CELLSTAR655090.zarr/B/03/0",
+        f"{fld}/AssayPlate_Greiner_CELLSTAR655090.zarr/B/03/1",
     ]
 
     parallelization_list = init_registration_hcs(

@@ -31,7 +31,7 @@ def _preprocess_input(
     current_label_path: str,
     ROI_table_path: str,
     ROI_positional_index: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """Preprocess a three-dimensional input to elastix registration task.
 
     **NOTE**: Adapted from cellpose_segmentation task together with

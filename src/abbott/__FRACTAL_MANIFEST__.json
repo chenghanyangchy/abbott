@@ -285,7 +285,7 @@
             "default": "emb_linked",
             "title": "Label Name",
             "type": "string",
-            "description": "Label name of segmented embryo that will be used as ROI for registration e.g. 'emb_linked'"
+            "description": "Label name of segmented embryo that will be used as ROI for registration e.g. 'emb_linked'."
           },
           "roi_table": {
             "default": "emb_ROI_table",

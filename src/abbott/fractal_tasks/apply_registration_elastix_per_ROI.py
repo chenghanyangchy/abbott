@@ -395,6 +395,16 @@ def apply_registration_elastix_per_ROI(
     # Process labels
     ####################
     # TODO: Do we need registration for labels?
+    try:
+        labels_group = zarr.open_group(f"{zarr_url}/labels", "r")
+        label_list = labels_group.attrs["labels"]
+        if label_list:
+            logger.warning(
+                "Skipping registration of labels ... Label registration "
+                "has not been implemented."
+            )
+    except (zarr.errors.GroupNotFoundError, KeyError):
+        logger.info("No labels found in the zarr file ... Continuing ...")
 
     ####################
     # Copy tables
