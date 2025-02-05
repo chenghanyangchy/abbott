@@ -8,42 +8,43 @@
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""
-Create OME-NGFF zarr group, for multiplexing dataset.
-"""
+"""Extend OME-NGFF zarr group, for multiplexing dataset."""
+
 import os
 from pathlib import Path
-from typing import Any
-from typing import Optional
-
-import pandas as pd
-import zarr
-from pydantic import validate_call
-from zarr.errors import ContainsGroupError
+from typing import Any, Optional
 
 import fractal_tasks_core
+import pandas as pd
+import zarr
 from fractal_tasks_core.cellvoyager.filenames import (
     glob_with_multiple_patterns,
+    parse_filename,
 )
-from fractal_tasks_core.cellvoyager.filenames import parse_filename
 from fractal_tasks_core.cellvoyager.metadata import (
     parse_yokogawa_metadata,
 )
-from fractal_tasks_core.cellvoyager.wells import generate_row_col_split
-from fractal_tasks_core.cellvoyager.wells import get_filename_well_id
-from fractal_tasks_core.channels import check_unique_wavelength_ids
-from fractal_tasks_core.channels import check_well_channel_labels
-from fractal_tasks_core.channels import define_omero_channels
-from fractal_tasks_core.ngff.specs import NgffImageMeta
-from fractal_tasks_core.ngff.specs import Plate
-from fractal_tasks_core.ngff.specs import Well
-from fractal_tasks_core.roi import prepare_FOV_ROI_table
-from fractal_tasks_core.roi import prepare_well_ROI_table
-from fractal_tasks_core.roi import remove_FOV_overlaps
+from fractal_tasks_core.cellvoyager.wells import (
+    generate_row_col_split,
+    get_filename_well_id,
+)
+from fractal_tasks_core.channels import (
+    check_unique_wavelength_ids,
+    check_well_channel_labels,
+    define_omero_channels,
+)
+from fractal_tasks_core.ngff.specs import NgffImageMeta, Plate, Well
+from fractal_tasks_core.roi import (
+    prepare_FOV_ROI_table,
+    prepare_well_ROI_table,
+    remove_FOV_overlaps,
+)
 from fractal_tasks_core.tables import write_table
-from fractal_tasks_core.tasks.io_models import InitArgsCellVoyager
-from fractal_tasks_core.tasks.io_models import MultiplexingAcquisition
-from fractal_tasks_core.zarr_utils import open_zarr_group_with_overwrite
+from fractal_tasks_core.tasks.io_models import (
+    InitArgsCellVoyager,
+    MultiplexingAcquisition,
+)
+from pydantic import validate_call
 
 __OME_NGFF_VERSION__ = fractal_tasks_core.__OME_NGFF_VERSION__
 
@@ -60,18 +61,16 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
     zarr_dir: str,
     # Core parameters
     acquisitions: dict[str, MultiplexingAcquisition],
-    plate_name: str,
     # Advanced parameters
     include_glob_patterns: Optional[list[str]] = None,
     exclude_glob_patterns: Optional[list[str]] = None,
-    num_levels: int = 5,
+    num_levels: int = 6,  # TODO: get num_levels from the existing zarr file?
     coarsening_xy: int = 2,
     image_extension: str = "tif",
     metadata_table_files: Optional[dict[str, str]] = None,
     overwrite: bool = False,
 ) -> dict[str, Any]:
-    """
-    Create OME-NGFF structure and metadata to host a multiplexing dataset.
+    """Create OME-NGFF structure and metadata to host a multiplexing dataset.
 
     This task takes a set of image folders (i.e. different multiplexing
     acquisitions) and build the internal structure and metadata of a OME-NGFF
@@ -83,8 +82,8 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         zarr_urls: List of paths or urls to the individual OME-Zarr image to
             be processed. Not used by the converter task.
             (standard argument for Fractal tasks, managed by Fractal server).
-        zarr_dir: path of the directory where the new OME-Zarrs will be
-            created.
+        zarr_dir: path to the directory of the existing OME-Zarr file where the
+            new acquisitions will be added.
             (standard argument for Fractal tasks, managed by Fractal server).
         acquisitions: dictionary of acquisitions. Each key is the acquisition
             identifier (normally 0, 1, 2, 3 etc.). Each item defines the
@@ -120,6 +119,22 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             plate, the images and some parameters required by downstream tasks
             (like `num_levels`).
     """
+    # Check if zarr_dir exists if not raise an error
+    if not os.path.isdir(zarr_dir):
+        raise ValueError(f"{zarr_dir=} does not exist.")
+
+    # Get all existing OME-Zarr files in the zarr_dir and throw an
+    # error if there is more than one
+    zarr_urls_dir = list(Path(zarr_dir).glob("*.zarr"))
+
+    if len(zarr_urls_dir) > 1:
+        raise NotImplementedError(
+            f"Multiple zarr files found in {zarr_dir}."
+            "Currently init_extend_multiplexing task "
+            "only supports one OME-Zarr file / directory."
+        )
+
+    zarr_url = Path(zarr_urls_dir[0])
 
     if metadata_table_files:
         # Checks on the dict:
@@ -134,13 +149,9 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             )
         for f in metadata_table_files.values():
             if not f.endswith(".csv"):
-                raise ValueError(
-                    f"{f} (in metadata_table_file) is not a csv file."
-                )
+                raise ValueError(f"{f} (in metadata_table_file) is not a csv file.")
             if not os.path.isfile(f):
-                raise ValueError(
-                    f"{f} (in metadata_table_file) does not exist."
-                )
+                raise ValueError(f"{f} (in metadata_table_file) does not exist.")
 
     # Preliminary checks on acquisitions
     # Note that in metadata the keys of dictionary arguments should be
@@ -152,11 +163,11 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         try:
             int(key)
         except ValueError:
-            raise ValueError("Acquisition dictionary keys need to be integers")
+            return ValueError("Acquisition dictionary keys need " "to be integers")
 
     # Identify all plates and all channels, per input folders
     dict_acquisitions: dict = {}
-    acquisitions_sorted = sorted(list(acquisitions.keys()))
+    acquisitions_sorted = sorted(acquisitions.keys())
     for acquisition in acquisitions_sorted:
         acq_input = acquisitions[acquisition]
         dict_acquisitions[acquisition] = {}
@@ -183,7 +194,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
                 #
                 # Skip for now and get the plate from the function input
                 #
-                plate = plate_name
+                plate = zarr_url.stem
                 plates.append(plate)
                 plate_prefix = filename_metadata["plate_prefix"]
                 plate_prefixes.append(plate_prefix)
@@ -191,11 +202,9 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
                 C = filename_metadata["C"]
                 actual_wavelength_ids.append(f"A{A}_C{C}")
             except ValueError as e:
-                logger.warning(
-                    f'Skipping "{Path(fn).name}". Original error: ' + str(e)
-                )
-        plates = sorted(list(set(plates)))
-        actual_wavelength_ids = sorted(list(set(actual_wavelength_ids)))
+                logger.warning(f'Skipping "{Path(fn).name}". Original error: ' + str(e))
+        plates = sorted(set(plates))
+        actual_wavelength_ids = sorted(set(actual_wavelength_ids))
 
         info = (
             "Listing all plates/channels:\n"
@@ -222,12 +231,8 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             )
 
         # Check that all channels are in the allowed_channels
-        allowed_wavelength_ids = [
-            c.wavelength_id for c in acq_input.allowed_channels
-        ]
-        if not set(actual_wavelength_ids).issubset(
-            set(allowed_wavelength_ids)
-        ):
+        allowed_wavelength_ids = [c.wavelength_id for c in acq_input.allowed_channels]
+        if not set(actual_wavelength_ids).issubset(set(allowed_wavelength_ids)):
             msg = "ERROR in create_ome_zarr\n"
             msg += f"actual_wavelength_ids: {actual_wavelength_ids}\n"
             msg += f"allowed_wavelength_ids: {allowed_wavelength_ids}\n"
@@ -241,7 +246,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             if channel.wavelength_id in actual_wavelength_ids
         ]
 
-        logger.info(f"plate: {plate}")
+        logger.info(f"plate: {plate}")  # this is extend cycle plate name
         logger.info(f"actual_channels: {actual_channels}")
 
         dict_acquisitions[acquisition] = {}
@@ -249,13 +254,9 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         dict_acquisitions[acquisition]["original_plate"] = original_plate
         dict_acquisitions[acquisition]["plate_prefix"] = plate_prefix
         dict_acquisitions[acquisition]["image_folder"] = acq_input.image_dir
-        dict_acquisitions[acquisition]["original_paths"] = [
-            acq_input.image_dir
-        ]
+        dict_acquisitions[acquisition]["original_paths"] = [acq_input.image_dir]
         dict_acquisitions[acquisition]["actual_channels"] = actual_channels
-        dict_acquisitions[acquisition][
-            "actual_wavelength_ids"
-        ] = actual_wavelength_ids
+        dict_acquisitions[acquisition]["actual_wavelength_ids"] = actual_wavelength_ids
 
     parallelization_list = []
     current_plates = [item["plate"] for item in dict_acquisitions.values()]
@@ -267,32 +268,39 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
     full_zarrurl = str(Path(zarr_dir) / zarrurl)
     logger.info(f"Creating {full_zarrurl=}")
     # Call zarr.open_group wrapper, which handles overwrite=True/False
-    
+
     if not Path(full_zarrurl).exists():
-        raise ValueError(f"Cannot extend {plate_name} - plate not found")
-    
+        raise ValueError(f"Cannot extend {plate} - plate not found")
+
     group_plate = zarr.open_group(full_zarrurl, mode="r+")
     plate_attrs = group_plate.attrs.get("plate")
     if plate_attrs is None:
-        raise ValueError(f"Image at {full_zarrurl} does not contain zarr plate metadata")
-    
+        raise ValueError(
+            f"Image at {full_zarrurl} does not contain " "zarr plate metadata"
+        )
+
     # validate
     Plate(**plate_attrs)
-    
+
     existing_acquisitions = plate_attrs["acquisitions"]
-    
+
     new_acquisitions = []
-    
+
     for acquisition in acquisitions_sorted:
         for ex_acquisition in existing_acquisitions:
             if acquisition == ex_acquisition["id"] and not overwrite:
-                raise ValueError(f"Acquisition {acquisition} already exists set overwrite to True to overwrite")
-        new_acquisitions.append({
+                raise ValueError(
+                    f"Acquisition {acquisition} already exists set "
+                    "overwrite to True to overwrite"
+                )
+        new_acquisitions.append(
+            {
                 "id": int(acquisition),
                 "name": dict_acquisitions[acquisition]["original_plate"],
-            })
-  
-    plate_attrs["acquisitions"] = existing_acquisitions + new_acquisitions 
+            }
+        )
+
+    plate_attrs["acquisitions"] = existing_acquisitions + new_acquisitions
     group_plate.attrs["plate"] = plate_attrs
 
     zarrurls: dict[str, list[str]] = {"well": [], "image": []}
@@ -341,10 +349,8 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             exclude_patterns=exclude_patterns,
         )
 
-        wells = [
-            parse_filename(os.path.basename(fn))["well"] for fn in plate_images
-        ]
-        wells = sorted(list(set(wells)))
+        wells = [parse_filename(os.path.basename(fn))["well"] for fn in plate_images]
+        wells = sorted(set(wells))
         logger.info(f"{wells=}")
 
         # Verify that all wells have all channels
@@ -368,7 +374,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
                     well_wavelength_ids.append(f"A{A}_C{C}")
                 except IndexError:
                     logger.info(f"Skipping {fpath}")
-            well_wavelength_ids = sorted(list(set(well_wavelength_ids)))
+            well_wavelength_ids = sorted(set(well_wavelength_ids))
             actual_wavelength_ids = dict_acquisitions[acquisition][
                 "actual_wavelength_ids"
             ]
@@ -381,29 +387,25 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
                 )
 
         well_rows_columns = generate_row_col_split(wells)
-        row_list = [
-            well_row_column[0] for well_row_column in well_rows_columns
-        ]
-        col_list = [
-            well_row_column[1] for well_row_column in well_rows_columns
-        ]
-        row_list = sorted(list(set(row_list)))
-        col_list = sorted(list(set(col_list)))
-        
-        #
-        # Init Exisiting Start
-        # TODO check if the columns, rows and wells are the same
+        row_list = [well_row_column[0] for well_row_column in well_rows_columns]
+        col_list = [well_row_column[1] for well_row_column in well_rows_columns]
+        row_list = sorted(set(row_list))
+        col_list = sorted(set(col_list))
+
+        # Check if the columns, rows and wells are the same
         # if there are new wells we throw an error
         # if some wells are missing we throw a warning
         # check if the version is the same and if not throw an error
-        #
-        
-        new_wells_set = set((well_row_column[0] + "/" + well_row_column[1]) for well_row_column in well_rows_columns)
-        old_wells_set = set(well["path"] for well in plate_attrs["wells"])
-        
+
+        new_wells_set = {
+            well_row_column[0] + "/" + well_row_column[1]
+            for well_row_column in well_rows_columns
+        }
+        old_wells_set = {well["path"] for well in plate_attrs["wells"]}
+
         if not new_wells_set.issubset(old_wells_set):
             raise ValueError("Well(s) not found in existing acquistions")
-        
+
         plate_attrs = group_plate.attrs["plate"]
         plate_attrs["columns"] = [{"name": col} for col in col_list]
         plate_attrs["rows"] = [{"name": row} for row in row_list]
@@ -420,10 +422,6 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         Plate(**plate_attrs)
         # Removed in init existing
         # group_plate.attrs["plate"] = plate_attrs
-        
-        #
-        # Init Exisiting End
-        #
 
         for row, column in well_rows_columns:
             parallelization_list.append(
@@ -442,13 +440,9 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
                     ).model_dump(),
                 }
             )
-    
-            group_well = zarr.open_group(
-                f"{full_zarrurl}/{row}/{column}/", mode="r+"
-            )
-            logging.info(
-                f"Loaded group_well from {full_zarrurl}/{row}/{column}"
-            )
+
+            group_well = zarr.open_group(f"{full_zarrurl}/{row}/{column}/", mode="r+")
+            logging.info(f"Loaded group_well from {full_zarrurl}/{row}/{column}")
             current_images = group_well.attrs["well"]["images"] + [
                 {"path": f"{acquisition}", "acquisition": int(acquisition)}
             ]
@@ -460,7 +454,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             Well(**well_attrs)
             group_well.attrs["well"] = well_attrs
 
-            group_image = group_well.create_group(f"{acquisition}/")  # noqa: F841
+            group_image = group_well.create_group(f"{acquisition}/")
             logging.info(f"Created image group {row}/{column}/{acquisition}")
             image = f"{plate}.zarr/{row}/{column}/{acquisition}"
             zarrurls["image"].append(image)
@@ -495,10 +489,8 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
                                     "scale": [
                                         1,
                                         pixel_size_z,
-                                        pixel_size_y
-                                        * coarsening_xy**ind_level,
-                                        pixel_size_x
-                                        * coarsening_xy**ind_level,
+                                        pixel_size_y * coarsening_xy**ind_level,
+                                        pixel_size_x * coarsening_xy**ind_level,
                                     ],
                                 }
                             ],
@@ -524,9 +516,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             # Prepare AnnData tables for FOV/well ROIs
             well_id = get_filename_well_id(row, column)
             FOV_ROIs_table = prepare_FOV_ROI_table(site_metadata.loc[well_id])
-            well_ROIs_table = prepare_well_ROI_table(
-                site_metadata.loc[well_id]
-            )
+            well_ROIs_table = prepare_well_ROI_table(site_metadata.loc[well_id])
 
             # Write AnnData tables into the `tables` zarr group
             write_table(
@@ -547,9 +537,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
     # Check that the different images (e.g. different acquisitions) in the each
     # well have unique labels
     for well_path in zarrurls["well"]:
-        check_well_channel_labels(
-            well_zarr_path=str(Path(zarr_dir) / well_path)
-        )
+        check_well_channel_labels(well_zarr_path=str(Path(zarr_dir) / well_path))
 
     return dict(parallelization_list=parallelization_list)
 
@@ -558,7 +546,6 @@ if __name__ == "__main__":
     from fractal_tasks_core.tasks._utils import run_fractal_task
 
     run_fractal_task(
-        task_function=cellvoyager_to_ome_zarr_init_multiplex,
+        task_function=cellvoyager_to_ome_zarr_init_extend_multiplex,
         logger_name=logger.name,
     )
-    
