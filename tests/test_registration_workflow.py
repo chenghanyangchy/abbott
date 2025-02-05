@@ -173,11 +173,13 @@ def test_registration_workflow_ROI():
     # Task-specific arguments
     wavelength_id = "A01_C01"
     label_name = "emb_linked"
-    roi_table = "emb_ROI_table_linked"
+    roi_table = "emb_ROI_table_2_linked"
     level = 2
-    reference_acquisition = 0
-    fld = """/Volumes/active/rhornb/fractal/74_tiny_mouseembryo_dataset/
-    446__data_active_rhornb_202404_realembryos_e55_65_multiplexing/"""
+    reference_acquisition = 2
+    fld = (
+        "/Users/ruthh/Pelkmans/Fractal/testdata"
+        "/446__data_active_rhornb_202404_realembryos_e55_65_multiplexing"
+    )
 
     zarr_urls = [
         f"{fld}/AssayPlate_Greiner_CELLSTAR655090.zarr/B/03/0",

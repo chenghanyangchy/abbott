@@ -184,8 +184,6 @@ def compute_registration_elastix_per_ROI(
     )
     check_valid_ROI_indices(list_indices_acq_x, roi_table)
 
-    print(f"ROI lbl ids: {ROI_lbl_ids}")
-
     compute = True
     for i, ROI_lbl_id in enumerate(
         ROI_lbl_ids
