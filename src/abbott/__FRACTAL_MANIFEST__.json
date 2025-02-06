@@ -370,18 +370,6 @@
             "type": "integer",
             "description": "Linear coarsening factor between subsequent levels. If set to `2`, level 1 is 2x downsampled, level 2 is 4x downsampled etc."
           },
-          "x_shift": {
-            "default": 0.0,
-            "title": "X Shift",
-            "type": "number",
-            "description": "Missing description"
-          },
-          "y_shift": {
-            "default": 0.0,
-            "title": "Y Shift",
-            "type": "number",
-            "description": "Missing description"
-          },
           "image_extension": {
             "default": "tif",
             "title": "Image Extension",
