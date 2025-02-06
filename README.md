@@ -9,9 +9,11 @@
 
 | Task | Description | Passing |
 | --- | --- | --- |
-| Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.| WIP |
-| Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis.|x|
-| Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|x|
+| Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.| ✓ |
+| Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis.|✓|
+| Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|✓|
+| Compute Registration ROI (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis per ROI (e.g. embryo).|WIP|
+| Apply Registration ROI (elastix) | Apply rigid/affine/b-spline registration to images per ROI (e.g. embryo).|WIP|
 
 ## Installation
 
