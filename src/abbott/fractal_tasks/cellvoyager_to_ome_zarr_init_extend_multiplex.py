@@ -191,9 +191,6 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         for fn in input_filenames:
             try:
                 filename_metadata = parse_filename(Path(fn).name)
-                #
-                # Skip for now and get the plate from the function input
-                #
                 plate = zarr_url.stem
                 plates.append(plate)
                 plate_prefix = filename_metadata["plate_prefix"]

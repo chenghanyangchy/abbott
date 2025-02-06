@@ -24,4 +24,15 @@ TASK_LIST = [
         tags=["Multiplexing"],
         docs_info="file:docs_info/apply_registration.md",
     ),
+    CompoundTask(
+        name="Convert Cellvoyager Multiplexing to existing OME-Zarr",
+        executable_init="fractal_tasks/cellvoyager_to_ome_zarr_init_extend_multiplex.py",
+        executable="fractal_tasks/cellvoyager_compute_omezarr.py",
+        meta_init={"cpus_per_task": 1, "mem": 4000},
+        meta={"cpus_per_task": 1, "mem": 4000},
+        category="Conversion",
+        modality="HCS",
+        tags=["Yokogawa", "Cellvoyager", "2D", "3D"],
+        docs_info="file:docs_info/convert_cellvoyager_multiplex_extend.md",
+    ),
 ]

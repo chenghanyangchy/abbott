@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 from devtools import debug
-from fractal_tasks_core.tasks.cellvoyager_to_ome_zarr_compute import (
-    cellvoyager_to_ome_zarr_compute,
-)
 from fractal_tasks_core.tasks.cellvoyager_to_ome_zarr_init_multiplex import (
     cellvoyager_to_ome_zarr_init_multiplex,
 )
 from fractal_tasks_core.tasks.io_models import MultiplexingAcquisition
 
+from abbott.fractal_tasks.cellvoyager_compute_omezarr import (
+    cellvoyager_to_ome_zarr_compute,
+)
 from abbott.fractal_tasks.cellvoyager_to_ome_zarr_init_extend_multiplex import (
     cellvoyager_to_ome_zarr_init_extend_multiplex,
 )
@@ -43,6 +43,8 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
     tmp_path: Path,
     zenodo_images_multiplex: Sequence[str],
 ):
+    zarr_urls_init_extend = []
+
     acquisition_init = {
         "0": MultiplexingAcquisition(
             image_dir=zenodo_images_multiplex[0],
@@ -70,7 +72,7 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
             zarr_url=image["zarr_url"],
             init_args=image["init_args"],
         )
-
+        zarr_urls_init_extend.append(image["zarr_url"])
     #####
     # Extend zarr file with new cycle
     #####
@@ -97,13 +99,14 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
             zarr_url=image["zarr_url"],
             init_args=image["init_args"],
         )
+        zarr_urls_init_extend.append(image["zarr_url"])
 
     #####
-    # Assert if extended OME-Zarr file has the same
-    # structure / hierarchy as an OME-Zarr initialized
-    # with both cycles from scratch
+    # Assert if extended OME-Zarr file has the same amount of
+    # zarr_urls as OME-Zarr files initiated in a single step
     #####
 
+    zarr_urls_init = []
     acquisitions = {
         "0": MultiplexingAcquisition(
             image_dir=zenodo_images_multiplex[0],
@@ -134,5 +137,6 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
             zarr_url=image["zarr_url"],
             init_args=image["init_args"],
         )
+        zarr_urls_init.append(image["zarr_url"])
 
-    # TODO: implement check - @Joel is there already a function for this?
+    assert len(zarr_urls_init) == len(zarr_urls_init_extend)
