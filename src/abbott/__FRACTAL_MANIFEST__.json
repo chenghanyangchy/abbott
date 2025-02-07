@@ -327,7 +327,7 @@
             },
             "title": "Zarr Urls",
             "type": "array",
-            "description": "List of paths or urls to the individual OME-Zarr image to be processed. Not used by the converter task. (standard argument for Fractal tasks, managed by Fractal server)."
+            "description": "List of paths or urls to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
           },
           "zarr_dir": {
             "title": "Zarr Dir",
@@ -359,7 +359,7 @@
             "description": "If specified, exclude any image where the filename matches any of the exclusion patterns. Patterns are specified the same as for include_glob_patterns."
           },
           "num_levels": {
-            "default": 6,
+            "default": 5,
             "title": "Num Levels",
             "type": "integer",
             "description": "Number of resolution-pyramid levels. If set to `5`, there will be the full-resolution level and 4 levels of downsampled images."

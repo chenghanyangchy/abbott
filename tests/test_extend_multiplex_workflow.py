@@ -24,7 +24,7 @@ single_cycle_allowed_channels_no_label = [
     },
 ]
 
-num_levels = 6
+num_levels = 5
 coarsening_xy = 2
 
 
@@ -73,6 +73,7 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
             init_args=image["init_args"],
         )
         zarr_urls_init_extend.append(image["zarr_url"])
+
     #####
     # Extend zarr file with new cycle
     #####
@@ -84,8 +85,10 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
         ),
     }
 
+    zarr_urls = [image["zarr_url"] for image in parallelization_list]
+
     parallelization_list = cellvoyager_to_ome_zarr_init_extend_multiplex(
-        zarr_urls=[],
+        zarr_urls=zarr_urls,
         zarr_dir=zarr_dir,
         acquisitions=acquisition_extend,
         num_levels=num_levels,
