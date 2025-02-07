@@ -64,7 +64,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
     # Advanced parameters
     include_glob_patterns: Optional[list[str]] = None,
     exclude_glob_patterns: Optional[list[str]] = None,
-    num_levels: int = 6,  # TODO: get num_levels from the existing zarr file?
+    num_levels: int = 5,
     coarsening_xy: int = 2,
     image_extension: str = "tif",
     metadata_table_files: Optional[dict[str, str]] = None,
@@ -80,7 +80,7 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
 
     Args:
         zarr_urls: List of paths or urls to the individual OME-Zarr image to
-            be processed. Not used by the converter task.
+            be processed.
             (standard argument for Fractal tasks, managed by Fractal server).
         zarr_dir: path to the directory of the existing OME-Zarr file where the
             new acquisitions will be added.
@@ -119,22 +119,15 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
             plate, the images and some parameters required by downstream tasks
             (like `num_levels`).
     """
-    # Check if zarr_dir exists if not raise an error
-    if not os.path.isdir(zarr_dir):
-        raise ValueError(f"{zarr_dir=} does not exist.")
-
-    # Get all existing OME-Zarr files in the zarr_dir and throw an
-    # error if there is more than one
-    zarr_urls_dir = list(Path(zarr_dir).glob("*.zarr"))
-
-    if len(zarr_urls_dir) > 1:
-        raise NotImplementedError(
-            f"Multiple zarr files found in {zarr_dir}."
-            "Currently init_extend_multiplexing task "
-            "only supports one OME-Zarr file / directory."
+    if not zarr_urls:
+        raise ValueError(
+            "Run 'Convert Cellvoyager Multiplexing to OME-Zarr' "
+            "task first before trying to extend it."
         )
 
-    zarr_url = Path(zarr_urls_dir[0])
+    # Get the plate name of existing OME-Zarr file to write to (see issue #16)
+    zarr_url = zarr_urls[0]
+    plate = _get_plate_name(Path(zarr_url))
 
     if metadata_table_files:
         # Checks on the dict:
@@ -191,7 +184,6 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         for fn in input_filenames:
             try:
                 filename_metadata = parse_filename(Path(fn).name)
-                plate = zarr_url.stem
                 plates.append(plate)
                 plate_prefix = filename_metadata["plate_prefix"]
                 plate_prefixes.append(plate_prefix)
@@ -537,6 +529,14 @@ def cellvoyager_to_ome_zarr_init_extend_multiplex(
         check_well_channel_labels(well_zarr_path=str(Path(zarr_dir) / well_path))
 
     return dict(parallelization_list=parallelization_list)
+
+
+def _get_plate_name(zarr_url: Path) -> str:
+    """Extract plate name from an OME-Zarr image url."""
+    while zarr_url.suffix != ".zarr" and zarr_url != zarr_url.parent:
+        zarr_url = zarr_url.parent
+    plate_name = zarr_url.stem
+    return plate_name
 
 
 if __name__ == "__main__":
