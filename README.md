@@ -14,6 +14,12 @@
 | Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|✓|
 | Compute Registration ROI (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis per ROI (e.g. embryo).|WIP|
 | Apply Registration ROI (elastix) | Apply rigid/affine/b-spline registration to images per ROI (e.g. embryo).|WIP|
+| Compute Channel Registration (elastix) | Compute rigid/affine/b-spline registration between channels in multi-channel acquisitions.|TODO|
+| Apply Channel Registration (elastix) | Apply rigid/affine/b-spline registration to multi-channel images.|TODO|
+| InstanSeg Segmentation | Segments images using InstanSeg models.|TODO|
+| z-decay Intensity Correction (zfish) | Compute different z-decay models per channel across plate.|TODO|
+| Time-decay Intensity Correction (zfish) | Compute time-decay per channel across plate.|TODO|
+| Feature Measurements (zfish)| Extract features using the zfish library.|TODO|
 
 ## Installation
 
