@@ -13,13 +13,13 @@ from abbott.fractal_tasks.init_registration_hcs import init_registration_hcs
 
 
 @pytest.fixture(scope="function")
-def test_data_dir(tmp_path: Path, zenodo_zarr: Path) -> str:
+def test_data_dir(tmp_path: Path, zenodo_zarr_old: Path) -> str:
     """
     Copy a test-data folder into a temporary folder.
     """
     dest_dir = (tmp_path / "registration_data").as_posix()
-    debug(zenodo_zarr, dest_dir)
-    shutil.copytree(zenodo_zarr, dest_dir)
+    debug(zenodo_zarr_old, dest_dir)
+    shutil.copytree(zenodo_zarr_old, dest_dir)
     return dest_dir
 
 
