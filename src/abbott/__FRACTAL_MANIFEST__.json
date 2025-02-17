@@ -184,6 +184,138 @@
       "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
+      "name": "Compute Channel Registration (elastix)",
+      "input_types": {
+        "channels_registered": false
+      },
+      "category": "Registration",
+      "modality": "HCS",
+      "tags": [
+        "Multiplexing"
+      ],
+      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Processes images grouped by well, under the assumption that each well contains one image per acquisition.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Channel Registration (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.\n",
+      "executable_parallel": "fractal_tasks/compute_channel_registration_elastix.py",
+      "meta_parallel": {
+        "cpus_per_task": 1,
+        "mem": 4000
+      },
+      "args_schema_parallel": {
+        "additionalProperties": false,
+        "properties": {
+          "zarr_url": {
+            "title": "Zarr Url",
+            "type": "string",
+            "description": "Path or url to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "reference_wavelength": {
+            "title": "Reference Wavelength",
+            "type": "string",
+            "description": "Wavelength that will be used for image-based registration; e.g. `A01_C01` for Yokogawa, `C01` for MD."
+          },
+          "parameter_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parameter Files",
+            "type": "array",
+            "description": "Paths to the elastix parameter files to be used. Usually a single parameter file with the transformation class SimilarityTransform to compute channel registration."
+          },
+          "lower_rescale_quantile": {
+            "default": 0.0,
+            "title": "Lower Rescale Quantile",
+            "type": "number",
+            "description": "Lower quantile for rescaling the image intensities before applying registration. Can be helpful to deal with image artifacts. Default is 0."
+          },
+          "upper_rescale_quantile": {
+            "default": 0.99,
+            "title": "Upper Rescale Quantile",
+            "type": "number",
+            "description": "Upper quantile for rescaling the image intensities before applying registration. Can be helpful to deal with image artifacts. Default is 0.99."
+          },
+          "roi_table": {
+            "default": "FOV_ROI_table",
+            "title": "Roi Table",
+            "type": "string",
+            "description": "Name of the ROI table over which the task loops to calculate the registration. Examples: `FOV_ROI_table` => loop over the field of views, `well_ROI_table` => process the whole well as one image."
+          },
+          "level": {
+            "default": 2,
+            "title": "Level",
+            "type": "integer",
+            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution."
+          }
+        },
+        "required": [
+          "zarr_url",
+          "reference_wavelength",
+          "parameter_files"
+        ],
+        "type": "object",
+        "title": "ComputeChannelRegistrationElastix"
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
+    },
+    {
+      "name": "Apply Channel Registration (elastix)",
+      "input_types": {
+        "channels_registered": false
+      },
+      "output_types": {
+        "channels_registered": true
+      },
+      "category": "Registration",
+      "modality": "HCS",
+      "tags": [
+        "Multiplexing"
+      ],
+      "docs_info": "### Purpose\n- **Applies pre-calculated registration** from `Calculate Channel Registration (elastix)` task to images in an **HCS** OME-Zarr dataset, aligning all channels of an acquisition to a specified reference wavelength.\n- This task is useful if there are wavelength- and sample-dependent chromatic shifts.\n- Replaces the non-aligned image with the newly aligned image in the dataset if `overwrite input` is selected.\n- Typically used as the second task in a workflow, following `Calculate Channel Registration (elastix)`.\n\n### Limitations\n- If `overwrite input` is selected, the non-aligned image is permanently deleted, which may impact workflows requiring access to the original images.\n",
+      "executable_parallel": "fractal_tasks/apply_channel_registration_elastix.py",
+      "meta_parallel": {
+        "cpus_per_task": 1,
+        "mem": 4000
+      },
+      "args_schema_parallel": {
+        "additionalProperties": false,
+        "properties": {
+          "zarr_url": {
+            "title": "Zarr Url",
+            "type": "string",
+            "description": "Path or url to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "roi_table": {
+            "title": "Roi Table",
+            "type": "string",
+            "description": "Name of the ROI table for which registrations have been calculated using the Compute Registration Elastix task. Examples: `FOV_ROI_table` => loop over the field of views, `well_ROI_table` => process the whole well as one image."
+          },
+          "reference_wavelength": {
+            "title": "Reference Wavelength",
+            "type": "string",
+            "description": "Against which wavelength the registration was calculated."
+          },
+          "overwrite_input": {
+            "default": true,
+            "title": "Overwrite Input",
+            "type": "boolean",
+            "description": "Whether the old image data should be replaced with the newly registered image data. Currently only implemented for `overwrite_input=True`."
+          },
+          "overwrite_output": {
+            "default": true,
+            "title": "Overwrite Output",
+            "type": "boolean",
+            "description": "Whether pre-existing registered images (which will be named \"zarr_url\" + channel_registered) should be overwritten by the task."
+          }
+        },
+        "required": [
+          "zarr_url",
+          "roi_table",
+          "reference_wavelength"
+        ],
+        "type": "object",
+        "title": "ApplyChannelRegistrationElastix"
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
+    },
+    {
       "name": "Convert Cellvoyager Multiplexing to existing OME-Zarr",
       "category": "Conversion",
       "modality": "HCS",
