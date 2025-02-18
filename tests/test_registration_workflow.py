@@ -181,11 +181,7 @@ def test_registration_workflow_ROI(test_data_dir):
     roi_table = "emb_ROI_table_2_linked"
     level = 0
     reference_acquisition = 2
-
-    zarr_urls = [
-        f"{test_data_dir}/B/03/0",
-        f"{test_data_dir}/B/03/1",
-    ]
+    zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
 
     parallelization_list = init_registration_hcs(
         zarr_urls=zarr_urls,
@@ -199,10 +195,10 @@ def test_registration_workflow_ROI(test_data_dir):
             zarr_url=param["zarr_url"],
             init_args=param["init_args"],
             wavelength_id=wavelength_id,
+            roi_table=roi_table,
+            label_name=label_name,
             lower_rescale_quantile=0.0,
             upper_rescale_quantile=0.99,
-            label_name=label_name,
-            roi_table=roi_table,
             parameter_files=parameter_files,
             level=level,
         )
@@ -217,6 +213,59 @@ def test_registration_workflow_ROI(test_data_dir):
     )
     new_zarr_url = f"{zarr_urls[1]}_registered"
     zarr.open_group(new_zarr_url, mode="r")
+
+    # Test reference zarr
+    apply_registration_elastix_per_ROI(
+        zarr_url=zarr_urls[0],
+        roi_table=roi_table,
+        label_name=label_name,
+        reference_acquisition=reference_acquisition,
+        overwrite_input=False,
+    )
+    new_zarr_url = f"{zarr_urls[0]}_registered"
+    zarr.open_group(new_zarr_url, mode="r")
+
+    # Test overwrite output False on reference image
+    with pytest.raises(FileExistsError):
+        apply_registration_elastix_per_ROI(
+            zarr_url=zarr_urls[0],
+            roi_table=roi_table,
+            label_name=label_name,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=False,
+            overwrite_output=False,
+        )
+
+    # Test overwrite output False on non reference image
+    with pytest.raises(zarr.errors.ContainsArrayError):
+        apply_registration_elastix_per_ROI(
+            zarr_url=zarr_urls[1],
+            roi_table=roi_table,
+            label_name=label_name,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=False,
+            overwrite_output=False,
+        )
+
+    # Pre-existing output can be overwritten
+    for zarr_url in zarr_urls:
+        apply_registration_elastix_per_ROI(
+            zarr_url=zarr_url,
+            roi_table=roi_table,
+            label_name=label_name,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=False,
+            overwrite_output=True,
+        )
+
+    for zarr_url in zarr_urls:
+        apply_registration_elastix_per_ROI(
+            zarr_url=zarr_url,
+            roi_table=roi_table,
+            label_name=label_name,
+            reference_acquisition=reference_acquisition,
+            overwrite_input=True,
+        )
 
 
 def test_registration_workflow_varying_levels_ROI(test_data_dir):
