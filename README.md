@@ -12,11 +12,11 @@
 | Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.| ✓ |
 | Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis.|✓|
 | Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|✓|
-| Compute Registration ROI (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis per ROI (e.g. embryo).|WIP|
-| Apply Registration ROI (elastix) | Apply rigid/affine/b-spline registration to images per ROI (e.g. embryo).|WIP|
+| Compute Registration ROI (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis per ROI (e.g. embryo).|✓|
+| Apply Registration ROI (elastix) | Apply rigid/affine/b-spline registration to images per ROI (e.g. embryo).|✓|
 | Compute Channel Registration (elastix) | Compute similarity registration of all channels in an acquisition to a reference channel.|✓|
 | Apply Channel Registration (elastix) | Apply similarity registration to multi-channel acquisition.|✓|
-| InstanSeg Segmentation | Segments images using InstanSeg models.|TODO|
+| InstanSeg Segmentation | Segments images using InstanSeg models.|WIP|
 | z-decay Intensity Correction (zfish) | Compute different z-decay models per channel across plate.|TODO|
 | Time-decay Intensity Correction (zfish) | Compute time-decay per channel across plate.|TODO|
 | Feature Measurements (zfish)| Extract features using the zfish library.|TODO|
