@@ -1,14 +1,19 @@
 # Copyright 2022 (C) Friedrich Miescher Institute for Biomedical Research and
 # University of Zurich
 #
+# Based on:
+# https://github.com/MaksHess/abbott
+# Channel registration logic from Shayan Shamipour <shayan.shamipour@mls.uzh.ch>
+#
 # Original authors:
 # Joel Lüthi <joel.luethi@uzh.ch>
+# Ruth Hornbachner <ruth.hornbachner@uzh.ch>
 #
 # This file is part of Fractal and was originally developed by eXact lab S.r.l.
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""Calculates translation for 2D image-based registration"""
+"""Calculates transformation for 3D image-based registration"""
 
 import logging
 import os
@@ -22,6 +27,11 @@ import dask.array as da
 import fsspec
 import numpy as np
 import zarr
+from fractal_tasks_core.channels import (
+    OmeroChannel,
+    get_channel_from_image_zarr,
+    get_omero_channel_list,
+)
 from fractal_tasks_core.ngff import load_NgffImageMeta
 from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
 from fractal_tasks_core.pyramids import build_pyramid
@@ -33,7 +43,6 @@ from fractal_tasks_core.roi import (
 )
 from fractal_tasks_core.tables import write_table
 from fractal_tasks_core.tasks._zarr_utils import (
-    _get_matching_ref_acquisition_path_heuristic,
     _update_well_metadata,
 )
 from fractal_tasks_core.utils import (
@@ -49,13 +58,13 @@ logger = logging.getLogger(__name__)
 
 
 @validate_call
-def apply_registration_elastix(
+def apply_channel_registration_elastix(
     *,
     # Fractal parameters
     zarr_url: str,
     # Core parameters
     roi_table: str,
-    reference_acquisition: int = 0,
+    reference_wavelength: str,
     overwrite_input: bool = True,
     overwrite_output: bool = True,
 ):
@@ -65,13 +74,12 @@ def apply_registration_elastix(
 
     1. Mask all regions in images that are not available in the
     registered ROI table and store each acquisition aligned to the
-    reference_acquisition (by looping over ROIs).
-    2. Do the same for all label images.
-    3. Copy all tables from the non-aligned image to the aligned image
+    reference_wavelength (by looping over ROIs).
+    2. Copy all tables from the non-aligned image to the aligned image
     (currently only works well if the only tables are well & FOV ROI tables
     (registered and original). Not implemented for measurement tables and
     other ROI tables).
-    4. Clean up: Delete the old, non-aligned image and rename the new,
+    3. Clean up: Delete the old, non-aligned image and rename the new,
     aligned image to take over its place.
 
     Args:
@@ -81,86 +89,32 @@ def apply_registration_elastix(
             have been calculated using the Compute Registration Elastix task.
             Examples: `FOV_ROI_table` => loop over the field of views,
             `well_ROI_table` => process the whole well as one image.
-        reference_acquisition: Which acquisition to register against. Uses the
-            OME-NGFF HCS well metadata acquisition keys to find the reference
-            acquisition.
+        reference_wavelength: Against which wavelength the registration was
+            calculated.
         overwrite_input: Whether the old image data should be replaced with the
             newly registered image data. Currently only implemented for
             `overwrite_input=True`.
         overwrite_output: Whether pre-existing registered images (which will
-            be named "zarr_url" + _registered) should be overwritten by the
+            be named "zarr_url" + channel_registered) should be overwritten by the
             task.
 
     """
     logger.info(zarr_url)
     logger.info(
         f"Running `apply_registration_to_image` on {zarr_url=}, "
-        f"{roi_table=} and {reference_acquisition=}. "
+        f"{roi_table=} and {reference_wavelength=}. "
         f"Using {overwrite_input=}"
     )
 
     well_url, old_img_path = _split_well_path_image_path(zarr_url)
-    suffix = "registered"
+    suffix = "channels_registered"
     new_zarr_url = f"{well_url}/{zarr_url.split('/')[-1]}_{suffix}"
-    # Get the zarr_url for the reference acquisition
     acq_dict = load_NgffWellMeta(well_url).get_acquisition_paths()
     logger.info(load_NgffWellMeta(well_url))
     logger.info(acq_dict)
-    if reference_acquisition not in acq_dict:
-        raise ValueError(
-            f"{reference_acquisition=} was not one of the available "
-            f"acquisitions in {acq_dict=} for well {well_url}"
-        )
-    elif len(acq_dict[reference_acquisition]) > 1:
-        ref_path = _get_matching_ref_acquisition_path_heuristic(
-            acq_dict[reference_acquisition], old_img_path
-        )
-        logger.warning(
-            "Running registration when there are multiple images of the same "
-            "acquisition in a well. Using a heuristic to match the reference "
-            f"acquisition. Using {ref_path} as the reference image."
-        )
-    else:
-        ref_path = acq_dict[reference_acquisition][0]
-    reference_zarr_url = f"{well_url}/{ref_path}"
 
     # Get acquisition metadata of zarr_url
-    curr_acq = get_acquisition_of_zarr_url(well_url, old_img_path)
-
-    # Special handling for the reference acquisition
-    # if acq_dict[zarr_url] == reference_zarr_url:
-    if curr_acq == reference_acquisition:
-        if overwrite_input:
-            # If the input is to be overwritten, nothing needs to happen. The
-            # reference acquisition stays as is and due to the output type set
-            # in the image list, the type of that OME-Zarr is updated
-            return
-        else:
-            # If the input is not overwritten, a copy of the reference
-            # OME-Zarr image needs to be created which has the new name & new
-            # metadata. It contains the same data as the original reference
-            # image.
-            generate_copy_of_reference_acquisition(
-                zarr_url=zarr_url,
-                new_zarr_url=new_zarr_url,
-                overwrite=overwrite_output,
-            )
-            image_list_updates = dict(
-                image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]
-            )
-            # Update the metadata of the the well
-            well_url, new_img_path = _split_well_path_image_path(new_zarr_url)
-            try:
-                _update_well_metadata(
-                    well_url=well_url,
-                    old_image_path=old_img_path,
-                    new_image_path=new_img_path,
-                )
-            except ValueError:
-                logger.warning(f"{new_zarr_url} was already listed in well metadata")
-            return image_list_updates
-
-    ROI_table_acq = ad.read_zarr(f"{zarr_url}/tables/{roi_table}")
+    ROI_table = ad.read_zarr(f"{zarr_url}/tables/{roi_table}")
 
     ngff_image_meta = load_NgffImageMeta(zarr_url)
     coarsening_xy = ngff_image_meta.coarsening_xy
@@ -173,7 +127,8 @@ def apply_registration_elastix(
     write_registered_zarr(
         zarr_url=zarr_url,
         new_zarr_url=new_zarr_url,
-        ROI_table=ROI_table_acq,
+        reference_wavelength=reference_wavelength,
+        ROI_table=ROI_table,
         roi_table_name=roi_table,
         num_levels=num_levels,
         coarsening_xy=coarsening_xy,
@@ -184,8 +139,7 @@ def apply_registration_elastix(
     ####################
     # Process labels
     ####################
-    # FIXME: Test if the registration methods are robust for labels. Very
-    # likely, it will not always maintain the label values correctly.
+    # Labels are currently not implemented for channel registration
     try:
         labels_group = zarr.open_group(f"{zarr_url}/labels", "r")
         label_list = labels_group.attrs["labels"]
@@ -199,32 +153,26 @@ def apply_registration_elastix(
 
     ####################
     # Copy tables
-    # 1. Copy all standard ROI tables from the reference acquisition.
-    # 2. Copy all tables that aren't standard ROI tables from the given
+    # Copy all tables that aren't standard ROI tables from the given
     # acquisition.
     ####################
-    table_dict_reference = _get_table_path_dict(reference_zarr_url)
     table_dict_component = _get_table_path_dict(zarr_url)
 
     table_dict = {}
     # Define which table should get copied:
-    for table in table_dict_reference:
-        if is_standard_roi_table(table):
-            table_dict[table] = table_dict_reference[table]
     for table in table_dict_component:
         if not is_standard_roi_table(table):
-            if reference_zarr_url != zarr_url:
-                logger.warning(
-                    f"{zarr_url} contained a table that is not a standard "
-                    "ROI table. The `Apply Registration To Image task` is "
-                    "best used before additional tables are generated. It "
-                    f"will copy the {table} from this acquisition without "
-                    "applying any transformations. This will work well if "
-                    f"{table} contains measurements. But if {table} is a "
-                    "custom ROI table coming from another task, the "
-                    "transformation is not applied and it will not match "
-                    "with the registered image anymore."
-                )
+            logger.warning(
+                f"{zarr_url} contained a table that is not a standard "
+                "ROI table. The `Apply Registration To Image task` is "
+                "best used before additional tables are generated. It "
+                f"will copy the {table} from this acquisition without "
+                "applying any transformations. This will work well if "
+                f"{table} contains measurements. But if {table} is a "
+                "custom ROI table coming from another task, the "
+                "transformation is not applied and it will not match "
+                "with the registered image anymore."
+            )
             table_dict[table] = table_dict_component[table]
 
     if table_dict:
@@ -293,6 +241,7 @@ def apply_registration_elastix(
 def write_registered_zarr(
     zarr_url: str,
     new_zarr_url: str,
+    reference_wavelength: str,
     ROI_table: ad.AnnData,
     roi_table_name: str,
     num_levels: int,
@@ -314,6 +263,7 @@ def write_registered_zarr(
         zarr_url: Path or url to the individual OME-Zarr image to be used as
             the basis for the new OME-Zarr image.
         new_zarr_url: Path or url to the new OME-Zarr image to be written
+        reference_wavelength: Wavelength to register against.
         ROI_table: Fractal ROI table for the component
         roi_table_name: Name of the ROI table that the registration was
             calculated on. Used to load the correct registration files.
@@ -357,31 +307,47 @@ def write_registered_zarr(
         dimension_separator="/",
     )
 
-    # TODO: Add sanity checks on the 2 ROI tables:
-    # 1. The number of ROIs need to match
-    # 2. The size of the ROIs need to match
-    # (otherwise, we can't assign them to the reference regions)
-    # ROI_table_ref vs ROI_table_acq
     for i, roi_indices in enumerate(list_indices):
-        # reference_region = convert_indices_to_regions(list_indices_ref[i])
         region = convert_indices_to_regions(roi_indices)
 
         fn_pattern = f"{roi_table_name}_roi_{roi_indices}_t*.txt"
 
         # FIXME: Improve sorting to always achieve correct order (above 9 items)
-        parameter_path = Path(zarr_url) / "registration"
+        parameter_path = Path(zarr_url) / "channel_registration"
         parameter_files = sorted(parameter_path.glob(fn_pattern))
         parameter_object = load_parameter_files([str(x) for x in parameter_files])
 
-        num_channels = data_array.shape[0]
+        # num_channels = data_array.shape[0]
         # Loop over channels
         axes_list = old_ngff_image_meta.axes_names
 
         if axes_list == ["c", "z", "y", "x"]:
-            for ind_ch in range(num_channels):
-                logger.info(f"Processing ROI index {i}, channel {ind_ch}")
+            # Get all channels except the reference channel
+            channels_align: list[OmeroChannel] = get_omero_channel_list(
+                image_zarr_path=zarr_url
+            )
+
+            # Remove the reference channel from the channels to align
+            for channel in channels_align:
+                if channel.wavelength_id == reference_wavelength:
+                    channels_align.remove(channel)
+
+            # Apply transformation to each channel except reference channel
+            for channel in channels_align:
+                channel_wavelength_acq_x = channel.wavelength_id
+                logger.info(
+                    f"Processing ROI index {i}, wavelength_id "
+                    f"{channel_wavelength_acq_x}"
+                )
+
+                channel_align: OmeroChannel = get_channel_from_image_zarr(
+                    image_zarr_path=zarr_url,
+                    wavelength_id=channel_wavelength_acq_x,
+                )
+                ind_ch = channel_align.index
                 # Define region
                 channel_region = (slice(ind_ch, ind_ch + 1), *region)
+
                 itk_img = to_itk(
                     np.squeeze(
                         load_region(
@@ -412,29 +378,9 @@ def write_registered_zarr(
                 )
 
         elif axes_list == ["z", "y", "x"]:
-            # Define region
-            itk_img = to_itk(
-                load_region(data_zyx=data_array, region=region, compute=True),
-                scale=tuple(pxl_sizes_zyx),
-            )
-            parameter_object = adapt_itk_params(
-                parameter_object=parameter_object,
-                itk_img=itk_img,
-            )
-            registered_roi = apply_transform(
-                itk_img,
-                parameter_object,
-            )
-            # Write to disk
-            img = to_numpy(registered_roi)
-
-            # FIXME: Can I still use this kind of writing it? Or do I first
-            # need to prepare the whole dask array? If so, memory implication
-            # or explicit delayed call?
-            da.array(img).to_zarr(
-                url=new_zarr_array,
-                region=region,
-                compute=True,
+            raise ValueError(
+                "At least two channels need to be present in the data array. "
+                f"Got {axes_list=}"
             )
         elif axes_list == ["c", "y", "x"]:
             # TODO: Implement cyx case (based on looping over xy case)
@@ -543,6 +489,6 @@ if __name__ == "__main__":
     from fractal_tasks_core.tasks._utils import run_fractal_task
 
     run_fractal_task(
-        task_function=apply_registration_elastix,
+        task_function=apply_channel_registration_elastix,
         logger_name=logger.name,
     )
