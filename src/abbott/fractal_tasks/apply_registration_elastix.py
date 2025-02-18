@@ -189,30 +189,13 @@ def apply_registration_elastix(
     try:
         labels_group = zarr.open_group(f"{zarr_url}/labels", "r")
         label_list = labels_group.attrs["labels"]
-        logger.warning(
-            "Applying registration to labels. This hasn't been tested well and "
-            "may have issues with creating new labels or other errors when "
-            "writing the label image."
-        )
-    except (zarr.errors.GroupNotFoundError, KeyError):
-        label_list = []
-
-    if label_list:
-        logger.info(f"Processing the label images: {label_list}")
-        labels_group = zarr.group(f"{new_zarr_url}/labels")
-        labels_group.attrs["labels"] = label_list
-
-        for label in label_list:
-            write_registered_zarr(
-                zarr_url=f"{zarr_url}/labels/{label}",
-                new_zarr_url=f"{new_zarr_url}/labels/{label}",
-                ROI_table=ROI_table_acq,
-                roi_table_name=roi_table,
-                num_levels=num_levels,
-                coarsening_xy=coarsening_xy,
-                aggregation_function=np.max,
-                overwrite=overwrite_output,
+        if label_list:
+            logger.warning(
+                "Skipping registration of labels ... Label registration "
+                "has not been implemented."
             )
+    except (zarr.errors.GroupNotFoundError, KeyError):
+        logger.info("No labels found in the zarr file ... Continuing ...")
 
     ####################
     # Copy tables
@@ -431,7 +414,7 @@ def write_registered_zarr(
         elif axes_list == ["z", "y", "x"]:
             # Define region
             itk_img = to_itk(
-                load_region(data_zyx=data_array[ind_ch], region=region, compute=True),
+                load_region(data_zyx=data_array, region=region, compute=True),
                 scale=tuple(pxl_sizes_zyx),
             )
             parameter_object = adapt_itk_params(

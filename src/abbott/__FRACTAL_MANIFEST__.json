@@ -8,7 +8,7 @@
       "tags": [
         "Multiplexing"
       ],
-      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Processes images grouped by well, under the assumption that each well contains one image per acquisition.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.\n",
+      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Processes images grouped by well, under the assumption that each well contains one image per acquisition.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.",
       "executable_non_parallel": "fractal_tasks/init_registration_hcs.py",
       "executable_parallel": "fractal_tasks/compute_registration_elastix.py",
       "meta_parallel": {
@@ -180,6 +180,206 @@
         ],
         "type": "object",
         "title": "ApplyRegistrationElastix"
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
+    },
+    {
+      "name": "Compute Registration per ROI (elastix)",
+      "category": "Registration",
+      "modality": "HCS",
+      "tags": [
+        "Multiplexing"
+      ],
+      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Can handle cases where there are more than one embryo / organoid in a FOV.\n- Processes images grouped by well, under the assumption that each ROI e.g. embryo / organoid is masked by a linked label (e.g. calculated by\n    `scMultiplex Calculate Object Linking`)  and corresponding masking_roi_table.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration ROI (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.\n",
+      "executable_non_parallel": "fractal_tasks/init_registration_hcs.py",
+      "executable_parallel": "fractal_tasks/compute_registration_elastix_per_ROI.py",
+      "meta_parallel": {
+        "cpus_per_task": 4,
+        "mem": 16000
+      },
+      "args_schema_non_parallel": {
+        "additionalProperties": false,
+        "properties": {
+          "zarr_urls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Zarr Urls",
+            "type": "array",
+            "description": "List of paths or urls to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "zarr_dir": {
+            "title": "Zarr Dir",
+            "type": "string",
+            "description": "path of the directory where the new OME-Zarrs will be created. Not used by this task. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "reference_acquisition": {
+            "default": 0,
+            "title": "Reference Acquisition",
+            "type": "integer",
+            "description": "Which acquisition to register against. Needs to match the acquisition metadata in the OME-Zarr image."
+          }
+        },
+        "required": [
+          "zarr_urls",
+          "zarr_dir"
+        ],
+        "type": "object",
+        "title": "InitRegistrationHcs"
+      },
+      "args_schema_parallel": {
+        "$defs": {
+          "InitArgsRegistration": {
+            "description": "Registration init args.",
+            "properties": {
+              "reference_zarr_url": {
+                "title": "Reference Zarr Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "reference_zarr_url"
+            ],
+            "title": "InitArgsRegistration",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "zarr_url": {
+            "title": "Zarr Url",
+            "type": "string",
+            "description": "Path or url to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "init_args": {
+            "$ref": "#/$defs/InitArgsRegistration",
+            "title": "Init Args",
+            "description": "Intialization arguments provided by `image_based_registration_hcs_init`. They contain the reference_zarr_url that is used for registration. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "wavelength_id": {
+            "title": "Wavelength Id",
+            "type": "string",
+            "description": "Wavelength that will be used for image-based registration; e.g. `A01_C01` for Yokogawa, `C01` for MD."
+          },
+          "parameter_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parameter Files",
+            "type": "array",
+            "description": "Paths to the elastix parameter files to be used."
+          },
+          "lower_rescale_quantile": {
+            "default": 0.0,
+            "title": "Lower Rescale Quantile",
+            "type": "number",
+            "description": "Lower quantile for rescaling the image intensities before applying registration. Can be helpful to deal with image artifacts. Default is 0."
+          },
+          "upper_rescale_quantile": {
+            "default": 0.99,
+            "title": "Upper Rescale Quantile",
+            "type": "number",
+            "description": "Upper quantile for rescaling the image intensities before applying registration. Can be helpful to deal with image artifacts. Default is 0.99."
+          },
+          "label_name": {
+            "default": "emb_linked",
+            "title": "Label Name",
+            "type": "string",
+            "description": "Label name of segmented embryo that will be used as ROI for registration e.g. 'emb_linked'."
+          },
+          "roi_table": {
+            "default": "emb_ROI_table",
+            "title": "Roi Table",
+            "type": "string",
+            "description": "Name of the ROI table for which registrations have been calculated using the Compute Registration Elastix task. Examples: `emb_ROI_table` => loop over each ROI per FOV."
+          },
+          "level": {
+            "default": 2,
+            "title": "Level",
+            "type": "integer",
+            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution."
+          }
+        },
+        "required": [
+          "zarr_url",
+          "init_args",
+          "wavelength_id",
+          "parameter_files"
+        ],
+        "type": "object",
+        "title": "ComputeRegistrationElastixPerRoi"
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
+    },
+    {
+      "name": "Apply Registration per ROI (elastix)",
+      "input_types": {
+        "registered": false
+      },
+      "output_types": {
+        "registered": true
+      },
+      "category": "Registration",
+      "modality": "HCS",
+      "tags": [
+        "Multiplexing"
+      ],
+      "docs_info": "### Purpose\n- **Applies pre-calculated registration** from `Compute Registration ROI (elastix)` task to images in an **HCS** OME-Zarr dataset, aligning all acquisitions to a specified reference acquisition.\n- Replaces the non-aligned image with the newly aligned image in the dataset if `overwrite input` is selected.\n- Typically used as the second task in a workflow, following `Compute Registration ROI (elastix)`.\n\n### Limitations\n- If `overwrite input` is selected, the non-aligned image is permanently deleted, which may impact workflows requiring access to the original images.\n",
+      "executable_parallel": "fractal_tasks/apply_registration_elastix_per_ROI.py",
+      "meta_parallel": {
+        "cpus_per_task": 1,
+        "mem": 4000
+      },
+      "args_schema_parallel": {
+        "additionalProperties": false,
+        "properties": {
+          "zarr_url": {
+            "title": "Zarr Url",
+            "type": "string",
+            "description": "Path or url to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
+          "roi_table": {
+            "default": "emb_ROI_table",
+            "title": "Roi Table",
+            "type": "string",
+            "description": "Name of the ROI table for which registrations have been calculated using the Compute Registration Elastix task. Examples: `emb_ROI_table` => loop over each ROI per FOV."
+          },
+          "label_name": {
+            "default": "emb_linked",
+            "title": "Label Name",
+            "type": "string",
+            "description": "Name of the label that is used to mask the image."
+          },
+          "reference_acquisition": {
+            "default": 0,
+            "title": "Reference Acquisition",
+            "type": "integer",
+            "description": "Which acquisition to register against. Uses the OME-NGFF HCS well metadata acquisition keys to find the reference acquisition."
+          },
+          "overwrite_input": {
+            "default": false,
+            "title": "Overwrite Input",
+            "type": "boolean",
+            "description": "Whether the old image data should be replaced with the newly registered image data. Currently default is `overwrite_input=False`."
+          },
+          "overwrite_output": {
+            "default": true,
+            "title": "Overwrite Output",
+            "type": "boolean",
+            "description": "Whether pre-existing registered images (which will be named \"zarr_url\" + _registered) should be overwritten by the task. Default is True."
+          },
+          "use_masks": {
+            "default": true,
+            "title": "Use Masks",
+            "type": "boolean",
+            "description": "use_masks: If `True`, try to use masked loading and fall back to `use_masks=False` if the ROI table is not suitable. Masked loading is relevant when only a subset of the bounding box should actually be processed (e.g. running within `emb_ROI_table`)."
+          }
+        },
+        "required": [
+          "zarr_url"
+        ],
+        "type": "object",
+        "title": "ApplyRegistrationElastixPerRoi"
       },
       "docs_link": "https://github.com/pelkmanslab/abbott"
     },

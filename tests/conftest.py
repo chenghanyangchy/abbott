@@ -23,8 +23,7 @@ def zenodo_zarr(testdata_path: Path) -> str:
     3. Modify the Zarrs in tests/data, to add whatever is not in Zenodo
     """
 
-    # 1 Download Zarrs from Zenodo
-    # DOI = "10.5281/zenodo.14617240" # 3D Registration Test data in OME-Zarr
+    # 1) Download Zarrs from Zenodo
     DOI = "10.5281/zenodo.14883998"
     DOI_slug = DOI.replace("/", "_").replace(".", "_")
     rootfolder = testdata_path / DOI_slug
@@ -43,56 +42,13 @@ def zenodo_zarr(testdata_path: Path) -> str:
     )
 
     file_name = "AssayPlate_Greiner_CELLSTAR655090.zarr"
-    # 1) Download/unzip a single Zarr from Zenodo
+    # 2) Download/unzip a single Zarr from Zenodo
     file_paths = POOCH.fetch(
         f"{file_name}.zip", processor=pooch.Unzip(extract_dir=file_name)
     )
     zarr_full_path = file_paths[0].split(file_name)[0] + file_name
 
-    # 2) Copy the downloaded Zarr into tests/data
-    if os.path.isdir(str(folder)):
-        shutil.rmtree(str(folder))
-    shutil.copytree(Path(zarr_full_path) / file_name, folder)
-    return Path(folder)
-
-
-# TODO: replace tests with zenodo_zarr
-@pytest.fixture(scope="session")
-def zenodo_zarr_old(testdata_path: Path) -> str:
-    """
-    This takes care of multiple steps:
-
-    1. Download/unzip two Zarr containers (3D and MIP) from Zenodo, via pooch
-    2. Copy the two Zarr containers into tests/data
-    3. Modify the Zarrs in tests/data, to add whatever is not in Zenodo
-    """
-
-    # 1 Download Zarrs from Zenodo
-    DOI = "10.5281/zenodo.14617240"  # 3D Registration Test data in OME-Zarr
-    DOI_slug = DOI.replace("/", "_").replace(".", "_")
-    rootfolder = testdata_path / DOI_slug
-    folder = rootfolder / "AssayPlate_Greiner_CELLSTAR655090.zarr"
-
-    registry = {
-        "AssayPlate_Greiner_CELLSTAR655090.zarr.zip": None,
-    }
-    base_url = f"doi:{DOI}"
-    POOCH = pooch.create(
-        pooch.os_cache("pooch") / DOI_slug,
-        base_url,
-        registry=registry,
-        retry_if_failed=10,
-        allow_updates=False,
-    )
-
-    file_name = "AssayPlate_Greiner_CELLSTAR655090.zarr"
-    # 1) Download/unzip a single Zarr from Zenodo
-    file_paths = POOCH.fetch(
-        f"{file_name}.zip", processor=pooch.Unzip(extract_dir=file_name)
-    )
-    zarr_full_path = file_paths[0].split(file_name)[0] + file_name
-
-    # 2) Copy the downloaded Zarr into tests/data
+    # 3) Copy the downloaded Zarr into tests/data
     if os.path.isdir(str(folder)):
         shutil.rmtree(str(folder))
     shutil.copytree(Path(zarr_full_path) / file_name, folder)
