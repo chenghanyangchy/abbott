@@ -343,6 +343,7 @@ def test_channel_registration_workflow(test_data_dir):
         zarr_url=zarr_url,
         roi_table=roi_table,
         reference_wavelength=reference_wavelength,
+        level=level,
         overwrite_input=False,
     )
     new_zarr_url = f"{zarr_url}_channels_registered"
@@ -353,6 +354,7 @@ def test_channel_registration_workflow(test_data_dir):
         zarr_url=zarr_url,
         roi_table=roi_table,
         reference_wavelength=reference_wavelength,
+        level=level,
         overwrite_input=False,
         overwrite_output=True,
     )
@@ -361,6 +363,7 @@ def test_channel_registration_workflow(test_data_dir):
         zarr_url=zarr_url,
         roi_table=roi_table,
         reference_wavelength=reference_wavelength,
+        level=level,
         overwrite_input=True,
     )
 
@@ -387,6 +390,7 @@ def test_channel_registration_workflow_varying_levels(test_data_dir):
         zarr_url=zarr_url,
         roi_table=roi_table,
         reference_wavelength=reference_wavelength,
+        level=level,
         overwrite_input=False,
     )
     new_zarr_url = f"{zarr_url}_channels_registered"
