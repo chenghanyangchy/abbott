@@ -492,6 +492,11 @@
             "type": "string",
             "description": "Against which wavelength the registration was calculated."
           },
+          "level": {
+            "title": "Level",
+            "type": "integer",
+            "description": "Against which pyramid level the registration was calculated."
+          },
           "overwrite_input": {
             "default": true,
             "title": "Overwrite Input",
@@ -508,7 +513,8 @@
         "required": [
           "zarr_url",
           "roi_table",
-          "reference_wavelength"
+          "reference_wavelength",
+          "level"
         ],
         "type": "object",
         "title": "ApplyChannelRegistrationElastix"

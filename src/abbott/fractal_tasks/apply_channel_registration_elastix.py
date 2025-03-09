@@ -24,7 +24,6 @@ from typing import Callable
 
 import anndata as ad
 import dask.array as da
-import fsspec
 import numpy as np
 import zarr
 from fractal_tasks_core.channels import (
@@ -65,6 +64,7 @@ def apply_channel_registration_elastix(
     # Core parameters
     roi_table: str,
     reference_wavelength: str,
+    level: int,
     overwrite_input: bool = True,
     overwrite_output: bool = True,
 ):
@@ -91,6 +91,7 @@ def apply_channel_registration_elastix(
             `well_ROI_table` => process the whole well as one image.
         reference_wavelength: Against which wavelength the registration was
             calculated.
+        level: Against which pyramid level the registration was calculated.
         overwrite_input: Whether the old image data should be replaced with the
             newly registered image data. Currently only implemented for
             `overwrite_input=True`.
@@ -102,7 +103,7 @@ def apply_channel_registration_elastix(
     logger.info(zarr_url)
     logger.info(
         f"Running `apply_registration_to_image` on {zarr_url=}, "
-        f"{roi_table=} and {reference_wavelength=}. "
+        f"{roi_table=}, {level=} and {reference_wavelength=}. "
         f"Using {overwrite_input=}"
     )
 
@@ -128,6 +129,7 @@ def apply_channel_registration_elastix(
         zarr_url=zarr_url,
         new_zarr_url=new_zarr_url,
         reference_wavelength=reference_wavelength,
+        level=level,
         ROI_table=ROI_table,
         roi_table_name=roi_table,
         num_levels=num_levels,
@@ -242,6 +244,7 @@ def write_registered_zarr(
     zarr_url: str,
     new_zarr_url: str,
     reference_wavelength: str,
+    level: int,
     ROI_table: ad.AnnData,
     roi_table_name: str,
     num_levels: int,
@@ -264,6 +267,7 @@ def write_registered_zarr(
             the basis for the new OME-Zarr image.
         new_zarr_url: Path or url to the new OME-Zarr image to be written
         reference_wavelength: Wavelength to register against.
+        level: Pyramid level that was used during compute_registration task.
         ROI_table: Fractal ROI table for the component
         roi_table_name: Name of the ROI table that the registration was
             calculated on. Used to load the correct registration files.
@@ -277,7 +281,6 @@ def write_registered_zarr(
 
     """
     # Read pixel sizes from Zarr attributes
-    level = 0  # FIXME: Expose this to the user
     ngff_image_meta = load_NgffImageMeta(zarr_url)
     pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=level)
     pxl_sizes_zyx_full_res = ngff_image_meta.get_pixel_sizes_zyx(level=0)
@@ -330,6 +333,13 @@ def write_registered_zarr(
             # Remove the reference channel from the channels to align
             for channel in channels_align:
                 if channel.wavelength_id == reference_wavelength:
+                    generate_copy_of_reference_wavelength(
+                        zarr_url=zarr_url,
+                        data_array=data_array,
+                        new_zarr_array=new_zarr_array,
+                        region=region,
+                        reference_wavelength=reference_wavelength,
+                    )
                     channels_align.remove(channel)
 
             # Apply transformation to each channel except reference channel
@@ -432,44 +442,37 @@ def adapt_itk_params(parameter_object, itk_img):
     return parameter_object
 
 
-def generate_copy_of_reference_acquisition(
+def generate_copy_of_reference_wavelength(
     zarr_url: str,
-    new_zarr_url: str,
-    overwrite: bool = True,
+    data_array: da.Array,
+    new_zarr_array: zarr.Array,
+    region: tuple,
+    reference_wavelength: str,
 ):
-    """Generate a copy of an existing OME-Zarr with all its components
+    """Write a copy of the reference wavelength to the new zarr
 
     Args:
-        zarr_url: Path to the existing zarr image
-        new_zarr_url: Path to the to be created zarr image
-        overwrite: Whether to overwrite a preexisting new_zarr_url
+        zarr_url: Path to the existing zarr image.
+        data_array: Dask array of the existing zarr image.
+        new_zarr_array: Zarr array of the new zarr image.
+        region: Region to copy.
+        reference_wavelength: Wavelength to register against.
     """
-    # Get filesystem and paths for source and destination
-    source_fs, source_path = fsspec.core.url_to_fs(zarr_url)
-    dest_fs, dest_path = fsspec.core.url_to_fs(new_zarr_url)
+    channel_reference: OmeroChannel = get_channel_from_image_zarr(
+        image_zarr_path=zarr_url,
+        wavelength_id=reference_wavelength,
+    )
+    ind_ch = channel_reference.index
+    channel_region = (slice(ind_ch, ind_ch + 1), *region)
 
-    # Check if the source exists
-    if not source_fs.exists(source_path):
-        raise FileNotFoundError(f"The source Zarr URL '{zarr_url}' does not exist.")
+    img = load_region(data_zyx=data_array[ind_ch], region=region, compute=True)
+    img = np.expand_dims(img, 0)
 
-    # Handle overwrite option
-    if dest_fs.exists(dest_path):
-        if overwrite:
-            dest_fs.delete(dest_path, recursive=True)
-        else:
-            raise FileExistsError(
-                f"The destination Zarr URL '{new_zarr_url}' already exists."
-            )
-
-    # Copy the source to the destination
-    source_fs.copy(source_path, dest_path, recursive=True)
-
-    # Verify the copied Zarr structure
-    try:
-        zarr.open_group(source_fs.get_mapper(source_path), mode="r")
-        zarr.open_group(dest_fs.get_mapper(dest_path), mode="r")
-    except Exception as e:
-        raise RuntimeError(f"Failed to verify the copied Zarr structure: {e}") from e
+    da.array(img).to_zarr(
+        url=new_zarr_array,
+        region=channel_region,
+        compute=True,
+    )
 
 
 def get_acquisition_of_zarr_url(well_url, image_name):
