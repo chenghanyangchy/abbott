@@ -495,7 +495,7 @@
           "level": {
             "title": "Level",
             "type": "integer",
-            "description": "Against which pyramid level the registration was calculated."
+            "description": "Pyramid level of full resolution image. Currently, running all tasks at resolution level=0 is recommended."
           },
           "overwrite_input": {
             "default": true,
