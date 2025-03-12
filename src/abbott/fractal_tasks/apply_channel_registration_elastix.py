@@ -24,6 +24,7 @@ from typing import Callable
 
 import anndata as ad
 import dask.array as da
+import numcodecs
 import numpy as np
 import zarr
 from fractal_tasks_core.channels import (
@@ -33,7 +34,6 @@ from fractal_tasks_core.channels import (
 )
 from fractal_tasks_core.ngff import load_NgffImageMeta
 from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
-from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     convert_indices_to_regions,
     convert_ROI_table_to_indices,
@@ -51,6 +51,7 @@ from fractal_tasks_core.utils import (
 from pydantic import validate_call
 
 from abbott.io.conversions import to_itk, to_numpy
+from abbott.registration.fractal_helper_tasks import build_pyramid
 from abbott.registration.itk_elastix import apply_transform, load_parameter_files
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,8 @@ def apply_channel_registration_elastix(
             `well_ROI_table` => process the whole well as one image.
         reference_wavelength: Against which wavelength the registration was
             calculated.
-        level: Against which pyramid level the registration was calculated.
+        level: Pyramid level of full resolution image. Currently, running all
+            tasks at resolution level=0 is recommended.
         overwrite_input: Whether the old image data should be replaced with the
             newly registered image data. Currently only implemented for
             `overwrite_input=True`.
@@ -129,7 +131,6 @@ def apply_channel_registration_elastix(
         zarr_url=zarr_url,
         new_zarr_url=new_zarr_url,
         reference_wavelength=reference_wavelength,
-        level=level,
         ROI_table=ROI_table,
         roi_table_name=roi_table,
         num_levels=num_levels,
@@ -163,6 +164,8 @@ def apply_channel_registration_elastix(
     table_dict = {}
     # Define which table should get copied:
     for table in table_dict_component:
+        if is_standard_roi_table(table):
+            table_dict[table] = table_dict_component[table]
         if not is_standard_roi_table(table):
             logger.warning(
                 f"{zarr_url} contained a table that is not a standard "
@@ -244,7 +247,6 @@ def write_registered_zarr(
     zarr_url: str,
     new_zarr_url: str,
     reference_wavelength: str,
-    level: int,
     ROI_table: ad.AnnData,
     roi_table_name: str,
     num_levels: int,
@@ -267,7 +269,6 @@ def write_registered_zarr(
             the basis for the new OME-Zarr image.
         new_zarr_url: Path or url to the new OME-Zarr image to be written
         reference_wavelength: Wavelength to register against.
-        level: Pyramid level that was used during compute_registration task.
         ROI_table: Fractal ROI table for the component
         roi_table_name: Name of the ROI table that the registration was
             calculated on. Used to load the correct registration files.
@@ -280,17 +281,17 @@ def write_registered_zarr(
             overwritten.
 
     """
+    level = 0
     # Read pixel sizes from Zarr attributes
     ngff_image_meta = load_NgffImageMeta(zarr_url)
     pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=level)
-    pxl_sizes_zyx_full_res = ngff_image_meta.get_pixel_sizes_zyx(level=0)
 
-    # Create list of indices for 3D ROIs
+    # Create list of indices for 3D ROIs at full resolution
     list_indices = convert_ROI_table_to_indices(
         ROI_table,
         level=level,
         coarsening_xy=coarsening_xy,
-        full_res_pxl_sizes_zyx=pxl_sizes_zyx_full_res,
+        full_res_pxl_sizes_zyx=pxl_sizes_zyx,
     )
 
     old_image_group = zarr.open_group(zarr_url, mode="r")
@@ -413,6 +414,9 @@ def write_registered_zarr(
                 f"a zarr with {axes_list=}"
             )
 
+    # pass compressor to fix #23 build_pyramid downsampling fails
+    compressor = numcodecs.bz2.BZ2(level=9)
+
     # Starting from on-disk highest-resolution data, build and write to
     # disk a pyramid of coarser levels
     build_pyramid(
@@ -422,6 +426,7 @@ def write_registered_zarr(
         coarsening_xy=coarsening_xy,
         chunksize=data_array.chunksize,
         aggregation_function=aggregation_function,
+        compressor=compressor,
     )
 
 
