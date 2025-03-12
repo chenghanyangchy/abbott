@@ -20,11 +20,11 @@ from typing import Callable
 import anndata as ad
 import dask.array as da
 import fsspec
-import numcodecs
 import numpy as np
 import zarr
 from fractal_tasks_core.ngff import load_NgffImageMeta
 from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
+from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     convert_indices_to_regions,
     convert_ROI_table_to_indices,
@@ -43,7 +43,6 @@ from fractal_tasks_core.utils import (
 from pydantic import validate_call
 
 from abbott.io.conversions import to_itk, to_numpy
-from abbott.registration.fractal_helper_tasks import build_pyramid
 from abbott.registration.itk_elastix import apply_transform, load_parameter_files
 
 logger = logging.getLogger(__name__)
@@ -455,9 +454,6 @@ def write_registered_zarr(
                 f"a zarr with {axes_list=}"
             )
 
-    # pass compressor to fix #23 build_pyramid downsampling fails
-    compressor = numcodecs.bz2.BZ2(level=9)
-
     # Starting from on-disk highest-resolution data, build and write to
     # disk a pyramid of coarser levels
     build_pyramid(
@@ -467,7 +463,6 @@ def write_registered_zarr(
         coarsening_xy=coarsening_xy,
         chunksize=data_array.chunksize,
         aggregation_function=aggregation_function,
-        compressor=compressor,
     )
 
 

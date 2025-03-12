@@ -20,11 +20,11 @@ import anndata as ad
 import dask.array as da
 import fsspec
 import itk
-import numcodecs
 import numpy as np
 import zarr
 from fractal_tasks_core.ngff import load_NgffImageMeta
 from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
+from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     check_valid_ROI_indices,
     convert_indices_to_regions,
@@ -47,7 +47,6 @@ from pydantic import validate_call
 
 from abbott.io.conversions import to_itk, to_numpy
 from abbott.registration.fractal_helper_tasks import (
-    build_pyramid,
     masked_loading_wrapper_registration,
 )
 from abbott.registration.itk_elastix import apply_transform, load_parameter_files
@@ -383,9 +382,6 @@ def apply_registration_elastix_per_ROI(
 
     logger.info(f"Finished registration for {zarr_url}, " "now building pyramids.")
 
-    # pass compressor to fix #23 build_pyramid downsampling fails
-    compressor = numcodecs.bz2.BZ2(level=9)
-
     # Starting from on-disk highest-resolution data, build and write to
     # disk a pyramid of coarser levels
     build_pyramid(
@@ -395,7 +391,6 @@ def apply_registration_elastix_per_ROI(
         coarsening_xy=coarsening_xy,
         chunksize=data_array.chunksize,
         aggregation_function=np.mean,
-        compressor=compressor,
     )
 
     ####################
