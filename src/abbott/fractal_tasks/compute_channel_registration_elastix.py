@@ -20,6 +20,8 @@ from pathlib import Path
 
 import anndata as ad
 import dask.array as da
+import itk
+import itk.itkAddImageFilterPython
 import numpy as np
 import zarr
 from fractal_tasks_core.channels import (
@@ -34,7 +36,6 @@ from fractal_tasks_core.roi import (
     convert_ROI_table_to_indices,
     load_region,
 )
-from itk import add_image_filter
 from pydantic import validate_call
 from skimage.exposure import rescale_intensity
 
@@ -196,11 +197,10 @@ def compute_channel_registration_elastix(
             ),
         )
 
-        # Pixel-wise addition of channels in channels_align
-        move_accumulated = None
+        # Pixel-wise addition of channels for channels in channels_align
+        move_itk_imgs = []
 
         for channel in channels_align:
-            logger.info(f"Processing channel {channel}.")
             channel_wavelength_acq_x = channel.wavelength_id
 
             # Load and rescale channel to align to ref_channel
@@ -228,18 +228,15 @@ def compute_channel_registration_elastix(
             )
 
             move = to_itk(img_acq_x, scale=tuple(pxl_sizes_zyx))
+            move_itk_imgs.append(move)
 
-            if move_accumulated is None:
-                move_accumulated = move
-
-            else:
-                move_accumulated = add_image_filter(move_accumulated, move)
+        accumulated = accumulate_images(move_itk_imgs)
 
         ##############
         #  Calculate the transformation
         ##############
         ref = to_itk(img_ref, scale=tuple(pxl_sizes_zyx))
-        trans = register_transform_only(ref, move_accumulated, parameter_files)
+        trans = register_transform_only(ref, accumulated, parameter_files)
 
         # Write transform parameter files
         # TODO: Add overwrite check (it overwrites by default)
@@ -254,6 +251,42 @@ def compute_channel_registration_elastix(
             )
             fn.parent.mkdir(exist_ok=True, parents=True)
             trans.WriteParameterFile(trans_map, fn.as_posix())
+
+
+def accumulate_images(move_itk_imgs):
+    """Accumulate ITK images with proper type handling."""
+    if not move_itk_imgs:
+        return None
+
+    # Define image types
+    ImageType = type(move_itk_imgs[0])
+    dimension = ImageType.GetImageDimension()
+    FloatImageType = itk.Image[itk.F, dimension]
+
+    # Convert first image
+    cast_filter = itk.CastImageFilter[ImageType, FloatImageType].New()
+    cast_filter.SetInput(move_itk_imgs[0])
+    cast_filter.Update()
+    result = cast_filter.GetOutput()
+
+    # Add remaining images
+    for img in move_itk_imgs[1:]:
+        # Cast current image
+        cast_filter = itk.CastImageFilter[ImageType, FloatImageType].New()
+        cast_filter.SetInput(img)
+        cast_filter.Update()
+        float_img = cast_filter.GetOutput()
+
+        # Add images with explicit template parameters
+        add_filter = itk.AddImageFilter[
+            FloatImageType, FloatImageType, FloatImageType
+        ].New()
+        add_filter.SetInput1(result)
+        add_filter.SetInput2(float_img)
+        add_filter.Update()
+        result = add_filter.GetOutput()
+
+    return result
 
 
 if __name__ == "__main__":
