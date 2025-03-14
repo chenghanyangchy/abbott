@@ -1,8 +1,9 @@
 # Based on https://github.com/MaksHess/abbott/blob/main/src/abbott/io/conversions.py
 # Original author: Max Hess
+"""Image conversion functions."""
+
 import warnings
 
-import h5py
 import itk
 import numpy as np
 
@@ -60,23 +61,6 @@ def to_itk(
         if scale is None:
             scale = tuple(img.GetSpacing())[::1]
         trans_img.SetSpacing(scale[::-1])
-    elif isinstance(img, h5py.Dataset):
-        img_dset = img
-        img = to_numpy(img_dset)
-        new_dtype = DTYPE_CONVERSION[img.dtype]
-        if conversion_warning:
-            warnings.warn(f"Converting {img.dtype} to {new_dtype}", stacklevel=2)
-
-        trans_img = itk.GetImageFromArray(img.astype(new_dtype))
-        if scale is None:
-            scale = tuple(
-                img_dset.attrs.get("element_size_um", img_dset.ndim * [1.0]).astype(
-                    np.float64
-                )
-            )
-        trans_img.SetSpacing(scale[::-1])
-    else:
-        raise TypeError(f"Unknown image type: {type(img)}")
     return trans_img
 
 
@@ -96,8 +80,6 @@ def to_numpy(img) -> np.ndarray:
         trans_img = itk.GetArrayFromImage(img)
     elif isinstance(img, np.ndarray):
         trans_img = img
-    elif isinstance(img, h5py.Dataset):
-        trans_img = img[...]
     else:
         raise ValueError(f"Unknown image type: {type(img)}")
     return trans_img
