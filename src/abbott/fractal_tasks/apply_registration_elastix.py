@@ -362,11 +362,11 @@ def write_registered_zarr(
     # 2. The size of the ROIs need to match
     # (otherwise, we can't assign them to the reference regions)
     # ROI_table_ref vs ROI_table_acq
-    for i, roi_indices in enumerate(list_indices):
-        # reference_region = convert_indices_to_regions(list_indices_ref[i])
+    for i_ROI, roi_indices in enumerate(list_indices):
+        logger.info(f"Now processing ROI {i_ROI+1}/{len(list_indices)}.")
         region = convert_indices_to_regions(roi_indices)
 
-        fn_pattern = f"{roi_table_name}_roi_{roi_indices}_t*.txt"
+        fn_pattern = f"{roi_table_name}_roi_{i_ROI}_t*.txt"
 
         # FIXME: Improve sorting to always achieve correct order (above 9 items)
         parameter_path = Path(zarr_url) / "registration"
@@ -379,7 +379,7 @@ def write_registered_zarr(
 
         if axes_list == ["c", "z", "y", "x"]:
             for ind_ch in range(num_channels):
-                logger.info(f"Processing ROI index {i}, channel {ind_ch}")
+                logger.info(f"Processing ROI index {i_ROI}, channel {ind_ch}")
                 # Define region
                 channel_region = (slice(ind_ch, ind_ch + 1), *region)
                 itk_img = to_itk(
