@@ -310,10 +310,12 @@ def write_registered_zarr(
         dimension_separator="/",
     )
 
-    for i, roi_indices in enumerate(list_indices):
+    for i_ROI, roi_indices in enumerate(list_indices):
+        logger.info(f"Now processing ROI {i_ROI+1}/{len(list_indices)}.")
+
         region = convert_indices_to_regions(roi_indices)
 
-        fn_pattern = f"{roi_table_name}_roi_{roi_indices}_t*.txt"
+        fn_pattern = f"{roi_table_name}_roi_{i_ROI}_t*.txt"
 
         # FIXME: Improve sorting to always achieve correct order (above 9 items)
         parameter_path = Path(zarr_url) / "channel_registration"
@@ -349,7 +351,7 @@ def write_registered_zarr(
             for channel in channels_align:
                 channel_wavelength_acq_x = channel.wavelength_id
                 logger.info(
-                    f"Processing ROI index {i}, wavelength_id "
+                    f"Processing ROI index {i_ROI}, wavelength_id "
                     f"{channel_wavelength_acq_x}"
                 )
 
