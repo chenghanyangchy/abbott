@@ -41,6 +41,7 @@ dependencies = [
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies)
 [project.optional-dependencies]
 dev = ["devtools", "hatch", "pytest", "requests", "jsonschema", "ruff", "pre-commit", "pooch", "pytest-cov"]
+stardist = ["csbdeep", "stardist", "tensorflow", "tensorflow-metal ; platform_system == 'Darwin'"]
 
 # https://docs.astral.sh/ruff
 [tool.ruff]
