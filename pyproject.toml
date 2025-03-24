@@ -35,6 +35,10 @@ dependencies = [
     "ngio == 0.1.6", 
     "scikit-image",
     "fsspec",
+    "csbdeep", 
+    "stardist", 
+    "tensorflow", 
+    "tensorflow-metal ; platform_system == 'Darwin'"
 ]
 
 # Optional dependencies (e.g. for `pip install -e ".[dev]"`, see
