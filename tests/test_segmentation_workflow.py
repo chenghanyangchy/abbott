@@ -92,6 +92,10 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
             normalization=StardistCustomNormalizer(),
         )
     
+    advanced_stardist_model_params = dict(prob_thresh=0.5,
+                                          nms_thresh=0.4,
+                                          scale=tuple([1.0, 1.0, 1.0]))
+    
     stardist_segmentation(
         zarr_url=zarr_url,
         level=4,
@@ -100,21 +104,13 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
         model_type=stardist_model,
         use_masks=False,
         output_label_name=output_label_name,
-        advanced_stardist_model_params=dict(
-            prob_thresh=0.1,
-            nms_thresh=0.4,
-            scale=tuple([1.0, 0.2, 0.2]),
-        ),
+        advanced_stardist_model_params=advanced_stardist_model_params,
         overwrite=True,
     )
     
     # test the same function with pretrained-model
     pretrained_model = dict(base_fld=str(Path(__file__).parent / "data/stardist_models/"), 
                             pretrained_model_name="custom_3D")
-    
-    advanced_stardist_model_params = dict(prob_thresh=0.5,
-                                          nms_thresh=0.4,
-                                          scale=tuple([1.0, 1.0, 1.0]))
     
     stardist_segmentation(
         zarr_url=zarr_url,
@@ -129,16 +125,20 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
     )
 
     # test stardist segmentation on embryo_ROIs
-    roi_table = "emb_ROI_table_2_linked"
+    input_roi_table_masked = "emb_ROI_table_2_linked"
     
     stardist_segmentation(
         zarr_url=zarr_url,
         level=4,
         use_masks=True,
         channel=channel,
-        input_ROI_table=input_ROI_table,
-        pretrained_model=pretrained_model,
+        input_ROI_table=input_roi_table_masked,
+        model_type=stardist_model,
         output_label_name=output_label_name,
         advanced_stardist_model_params=advanced_stardist_model_params,
         overwrite=True,
     )
+
+
+
+
