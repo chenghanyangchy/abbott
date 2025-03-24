@@ -16,6 +16,7 @@
 | Apply Registration ROI (elastix) | Apply rigid/affine/b-spline registration to images per ROI (e.g. embryo).|✓|
 | Compute Channel Registration (elastix) | Compute similarity registration of all channels in an acquisition to a reference channel.|✓|
 | Apply Channel Registration (elastix) | Apply similarity registration to multi-channel acquisition.|✓|
+| Stardist Segmentation | Segment images using Stardist. |✓|
 | InstanSeg Segmentation | Segments images using InstanSeg models.|WIP|
 | z-decay Intensity Correction (zfish) | Compute different z-decay models per channel across plate.|TODO|
 | Time-decay Intensity Correction (zfish) | Compute time-decay per channel across plate.|TODO|
@@ -30,10 +31,16 @@ git clone https://github.com/pelkmanslab/abbott
 cd abbott
 pip install -e .
 ```
+To also run Stardist task locally:
+```
+git clone https://github.com/pelkmanslab/abbott
+cd abbott
+pip install -e ".[stardist]"
+```
 
 For development:
 ```
 git clone https://github.com/pelkmanslab/abbott
 cd abbott
-pip install -e ".[dev]"
+pip install -e ".[dev,stardist]" 
 ```
