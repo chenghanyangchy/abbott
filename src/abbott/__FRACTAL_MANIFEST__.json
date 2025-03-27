@@ -955,6 +955,46 @@
                 ],
                 "title": "Scale",
                 "type": "array"
+              },
+              "n_tiles": {
+                "default": [
+                  1,
+                  1,
+                  1
+                ],
+                "maxItems": 3,
+                "minItems": 3,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "N Tiles",
+                "type": "array"
+              },
+              "show_tile_progress": {
+                "default": false,
+                "title": "Show Tile Progress",
+                "type": "boolean"
+              },
+              "verbose": {
+                "default": false,
+                "title": "Verbose",
+                "type": "boolean"
+              },
+              "predict_kwargs": {
+                "title": "Predict Kwargs",
+                "type": "object"
+              },
+              "nms_kwargs": {
+                "title": "Nms Kwargs",
+                "type": "object"
               }
             },
             "title": "StardistModelParams",

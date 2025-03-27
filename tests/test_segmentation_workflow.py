@@ -17,7 +17,7 @@ def test_data_dir_2d(tmp_path: Path, zenodo_zarr_stardist: list) -> str:
     Copy a test-data folder into a temporary folder.
     """
     zenodo_zarr_url = zenodo_zarr_stardist[1]
-    dest_dir = (tmp_path / "stardist_data").as_posix()
+    dest_dir = (tmp_path / "stardist_data_2d").as_posix()
     debug(zenodo_zarr_url, dest_dir)
     shutil.copytree(zenodo_zarr_url, dest_dir)
     return dest_dir
@@ -28,7 +28,6 @@ def test_stardist_segmentation_workflow_2d(test_data_dir_2d):
     input_ROI_table = "FOV_ROI_table"
     stardist_model = StardistModels.VERSATILE_FLUO_2D
     output_label_name = "nuclei_stardist"
-    
     zarr_url = f"{test_data_dir_2d}/B/03/0"
     
     channel = StardistChannelInputModel(
@@ -38,7 +37,7 @@ def test_stardist_segmentation_workflow_2d(test_data_dir_2d):
     
     stardist_segmentation(
         zarr_url=zarr_url,
-        level=2,
+        level=0,
         channel=channel,
         input_ROI_table=input_ROI_table,
         model_type=stardist_model,
@@ -73,7 +72,7 @@ def test_data_dir_3d(tmp_path: Path, zenodo_zarr: Path) -> str:
     """
     Copy a test-data folder into a temporary folder.
     """
-    dest_dir = (tmp_path / "stardist_data").as_posix()
+    dest_dir = (tmp_path / "stardist_data_3d").as_posix()
     debug(zenodo_zarr, dest_dir)
     shutil.copytree(zenodo_zarr, dest_dir)
     return dest_dir
@@ -94,16 +93,19 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
     
     advanced_stardist_model_params = dict(prob_thresh=0.5,
                                           nms_thresh=0.4,
-                                          scale=tuple([1.0, 1.0, 1.0]))
+                                          scale=tuple([1.0, 1.0, 1.0]),
+                                          n_tiles = tuple([4,2,2]),
+                                          show_tile_progress = True,
+                                          verbose=True)
     
     stardist_segmentation(
         zarr_url=zarr_url,
-        level=4,
+        level=0,
         channel=channel,
         input_ROI_table=input_ROI_table,
         model_type=stardist_model,
         use_masks=False,
-        output_label_name=output_label_name,
+        output_label_name="nuclei_stardist_lvl0_tiled",
         advanced_stardist_model_params=advanced_stardist_model_params,
         overwrite=True,
     )
@@ -124,7 +126,7 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
         overwrite=True,
     )
 
-    # test stardist segmentation on embryo_ROIs
+    # test stardist segmentation with masked ROI table
     input_roi_table_masked = "emb_ROI_table_2_linked"
     
     stardist_segmentation(

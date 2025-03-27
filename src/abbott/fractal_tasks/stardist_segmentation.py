@@ -26,13 +26,14 @@ import zarr
 from pydantic import Field, validate_call
 
 from stardist.models import StarDist2D, StarDist3D
+import scipy.ndimage
 
 from abbott.segmentation.io_models import (StardistpretrainedModel, 
                                            StardistModels,
-                                           StardistChannelInputModel)
+                                           StardistChannelInputModel,
+                                           StardistModelParams)
 
-from abbott.segmentation.stardist_utils import (StardistModelParams,
-                                                StardistCustomNormalizer,
+from abbott.segmentation.stardist_utils import (StardistCustomNormalizer,
                                                 _normalize_stardist_channel)
 
 from abbott.segmentation.fractal_helper_tasks import masked_loading_wrapper
@@ -66,7 +67,7 @@ __OME_NGFF_VERSION__ = fractal_tasks_core.__OME_NGFF_VERSION__
 def segment_ROI(
     x: np.ndarray,
     num_labels_tot: dict[str, int],
-    model: StardistModels,
+    model: StardistModels = None,
     do_3D: bool = True,
     normalization: StardistCustomNormalizer = StardistCustomNormalizer(),
     label_dtype: Optional[np.dtype] = None,
@@ -104,9 +105,11 @@ def segment_ROI(
     
     # make input 2D for stardist if not do_3D is True
     scale = advanced_stardist_model_params.scale
+    n_tiles = advanced_stardist_model_params.n_tiles
     if not do_3D:
         x = np.squeeze(x)
         scale = tuple(scale[1:]) 
+        n_tiles = tuple(n_tiles[1:])
 
     # Actual labeling
     t0 = time.perf_counter()
@@ -116,6 +119,10 @@ def segment_ROI(
             prob_thresh=advanced_stardist_model_params.prob_thresh,
             nms_thresh=advanced_stardist_model_params.nms_thresh,
             scale=scale,
+            n_tiles=n_tiles,
+            verbose=advanced_stardist_model_params.verbose,
+            predict_kwargs=advanced_stardist_model_params.predict_kwargs,
+            nms_kwargs=advanced_stardist_model_params.nms_kwargs,
         )
 
     if mask.ndim == 2:
@@ -261,8 +268,10 @@ def stardist_segmentation(
     # dimension
     if ngff_image_meta.axes_names[0] != "c":
         data_zyx = da.from_zarr(f"{zarr_url}/{level}")
+        data_zyx_full_res = da.from_zarr(f"{zarr_url}/0")
     else:
         data_zyx = da.from_zarr(f"{zarr_url}/{level}")[ind_channel]
+        data_zyx_full_res = da.from_zarr(f"{zarr_url}/0")[ind_channel]
     logger.info(f"{data_zyx.shape=}")
 
     # Read ROI table
@@ -352,8 +361,9 @@ def stardist_segmentation(
     logger.info(
         f"Helper function `prepare_label_group` returned {label_group=}"
     )
-    logger.info(f"Output label path: {zarr_url}/labels/{output_label_name}/0")
-    store = zarr.storage.FSStore(f"{zarr_url}/labels/{output_label_name}/0")
+    current_label_path = f"{zarr_url}/labels/{output_label_name}/0"
+    logger.info(f"Output label path: {current_label_path}")
+    store = zarr.storage.FSStore(current_label_path)
     label_dtype = np.uint32
 
     # Ensure that all output shapes & chunks are 3D (for 2D data: (1, y, x))
@@ -443,7 +453,7 @@ def stardist_segmentation(
         if use_masks:
             preprocessing_kwargs = dict(
                 region=region,
-                current_label_path=f"{zarr_url}/labels/{output_label_name}/0",
+                current_label_path=current_label_path,
                 ROI_table_path=ROI_table_path,
                 ROI_positional_index=i_ROI,
                 level=level,
@@ -451,7 +461,6 @@ def stardist_segmentation(
 
         # Call segment_ROI through the masked-loading wrapper, which includes
         # pre/post-processing functions if needed
-        # TODO: masked loading wrapper for 3D
         new_label_img = masked_loading_wrapper(
             image_array=img_np,
             function=segment_ROI,
@@ -475,7 +484,79 @@ def stardist_segmentation(
             region=region,
             compute=True,
         )
+    
+    # upsample label image to full resolution if not already
+    if level != 0:
+        print(f"Upsampling start for {zarr_url}")
+        label_array_low_res = da.from_zarr(current_label_path).compute()
+        label_array_high_res = upsample_label_image(label_array_low_res, 
+                                                    actual_res_pxl_sizes_zyx,
+                                                    full_res_pxl_sizes_zyx)
+    
+        if ngff_image_meta.axes_names[0] != "c":
+            new_datasets = rescale_datasets(
+                datasets=[ds.model_dump() for ds in ngff_image_meta.datasets],
+                coarsening_xy=coarsening_xy,
+                reference_level=0,
+                remove_channel_axis=False,
+            )
+        else:
+            new_datasets = rescale_datasets(
+                datasets=[ds.model_dump() for ds in ngff_image_meta.datasets],
+                coarsening_xy=coarsening_xy,
+                reference_level=0,
+                remove_channel_axis=True,
+            )
 
+        label_attrs = {
+            "image-label": {
+                "version": __OME_NGFF_VERSION__,
+                "source": {"image": "../../"},
+            },
+            "multiscales": [
+                {
+                    "name": output_label_name,
+                    "version": __OME_NGFF_VERSION__,
+                    "axes": [
+                        ax.dict()
+                        for ax in ngff_image_meta.multiscale.axes
+                        if ax.type != "channel"
+                    ],
+                    "datasets": new_datasets,
+                }
+            ],
+        }
+
+        label_group = prepare_label_group(
+            image_group,
+            output_label_name,
+            overwrite=True,
+            label_attrs=label_attrs,
+            logger=logger,
+        )
+        
+        shape_full_res = data_zyx_full_res.shape
+        if len(shape_full_res) == 2:
+            shape_full_res = (1, *shape_full_res)
+        chunks_full_res = data_zyx_full_res.chunksize
+        if len(chunks_full_res) == 2:
+            chunks_full_res = (1, *chunks_full_res)
+        mask_zarr = zarr.create(
+            shape=shape_full_res,
+            chunks=chunks_full_res,
+            dtype=label_dtype,
+            store=store,
+            overwrite=True,
+            dimension_separator="/",
+        )
+        
+        # Compute and store 0-th level to disk
+        da.array(label_array_high_res).to_zarr(
+            url=mask_zarr,
+            compute=True,
+        )
+        print(f"Upsampling end for {zarr_url}")
+        
     logger.info(
         f"End stardist_segmentation task for {zarr_url}, "
         "now building pyramids."
@@ -516,7 +597,16 @@ def stardist_segmentation(
             table_attrs=table_attrs,
         )
 
+def upsample_label_image(label_image_low_res, low_res_pixel_size, full_res_pixel_size):
+    """
+    Upsample low res label image to full res (level 0)
+    """
+    zoom_factor = np.floor_divide(low_res_pixel_size, full_res_pixel_size)
+    upsampled_label_image = scipy.ndimage.zoom(label_image_low_res, zoom_factor, order=0)
+    
+    return upsampled_label_image
 
+    
 if __name__ == "__main__":
     from fractal_tasks_core.tasks._utils import run_fractal_task
 

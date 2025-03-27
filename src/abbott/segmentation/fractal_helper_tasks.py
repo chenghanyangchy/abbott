@@ -127,7 +127,7 @@ def _preprocess_input(
 
     # Load current-label array (lazily)
     current_label_array = da.from_zarr(current_label_path)
-    logger.info(
+    print(
         f"[_preprocess_input] {current_label_path=}, " f"{current_label_array.shape=}"
     )
     
@@ -202,6 +202,8 @@ def _postprocess_output(
         The postprocessed array.
     """
     # Restore background
+    print(f"modified array shape: {modified_array.shape}")
+    
     modified_array[background] = original_array[background]
     return modified_array
 

@@ -47,29 +47,6 @@ class StardistpretrainedModel(BaseModel):
     base_fld: str
     pretrained_model_name: str
     
-class StardistModelParams(BaseModel):
-    """
-    Advanced Stardist Model Parameters
-    
-    Attributes:
-        prob_thresh: Only consider objects with predicted object 
-            probability above this threshold
-        nms_thresh: Perform non-maximum suppression (NMS) that 
-            considers two objects to be the same when their area/surface 
-            overlap exceeds this threshold.
-        normalize: 
-        scale: Scale the input image internally by a factor and rescale 
-            the output accordingly.
-        use_gpu: If `False`, always use the CPU; if `True`, use the GPU if
-            possible and fall-back to the CPU otherwise.
-    """
-    
-    prob_thresh: Optional[float] = None
-    nms_thresh: Optional[float] = None
-    normalize: bool = True
-    scale: int = 1
-    use_gpu: bool = True
-    
     
 class StardistChannelInputModel(ChannelInputModel):
     """
@@ -80,8 +57,8 @@ class StardistChannelInputModel(ChannelInputModel):
             Can only be specified if label is not set.
         label: Name of the channel. Can only be specified if wavelength_id is
             not set.
-        normalize: Validator to handle different normalization scenarios for
-            Cellpose models
+        normalization: Validator to handle different normalization scenarios for
+            Stardist models
     """
 
     normalization: StardistCustomNormalizer = Field(
@@ -102,3 +79,39 @@ class StardistChannelInputModel(ChannelInputModel):
                 f"Original error: {str(e)}"
             )
             return None
+
+
+class StardistModelParams(BaseModel):
+    """
+    Advanced Stardist Model Parameters
+    
+    Attributes:
+        sparse: If true, aggregate probabilities/distances sparsely during tiled
+            prediction to save memory (recommended)
+        prob_thresh: Consider only object candidates from pixels with predicted 
+            object probability above this threshold.
+        nms_thresh: Perform non-maximum suppression (NMS) that 
+            considers two objects to be the same when their area/surface 
+            overlap exceeds this threshold.
+        scale: Scale the input image internally by a tuple of floats and rescale 
+            the output accordingly. Useful if the Stardist model has been trained 
+            on images with different scaling. E.g. (z, y, x) = (1.0, 0.5, 0.5).
+        n_tiles : Out of memory (OOM) errors can occur if the input image is too large.
+            To avoid this problem, the input image is broken up into (overlapping) tiles
+            that are processed independently and re-assembled. This parameter denotes a 
+            tuple of the number of tiles for every image axis. E.g. (z, y, x) = (2, 4, 4).
+        show_tile_progress: Whether to show progress during tiled prediction.
+        verbose: Whether to print some info messages.
+        predict_kwargs: Keyword arguments for ``predict`` function of Keras model.
+        nms_kwargs: Keyword arguments for non-maximum suppression.
+    """
+    
+    sparse: bool = True
+    prob_thresh: Optional[float] = None
+    nms_thresh: Optional[float] = None
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    n_tiles: tuple[int, int, int] = (1, 1, 1)
+    show_tile_progress: bool = False
+    verbose: bool = False
+    predict_kwargs: dict = None
+    nms_kwargs: dict = None
