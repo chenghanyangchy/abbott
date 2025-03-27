@@ -1,3 +1,17 @@
+# Copyright 2023 (C) Friedrich Miescher Institute for Biomedical Research and
+# University of Zurich
+#
+# Original authors:
+# Joel Lüthi  <joel.luethi@fmi.ch>
+# Ruth Hornbachner <ruth.hornbachner@uzh.ch>
+#
+# This file is part of Fractal and was originally developed by eXact lab S.r.l.
+# <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
+# Institute for Biomedical Research and Pelkmans Lab from the University of
+# Zurich.
+"""
+Helper functions to run stardist segmentation task
+"""
 import logging
 from typing import Optional, Literal
 
@@ -8,6 +22,7 @@ from typing_extensions import Self
 
 from fractal_tasks_core.tasks.cellpose_utils import normalized_img
 from csbdeep.utils import normalize
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +46,7 @@ class StardistpretrainedModel(BaseModel):
         base_fld: Base folder to where custom Stardist models are stored
         model_name: Name of the custom model
     """
+    
     base_fld: str
     pretrained_model_name: str
     
@@ -134,30 +150,6 @@ class StardistCustomNormalizer(BaseModel):
             )
 
         return self
-
-
-class StardistModelParams(BaseModel):
-    """
-    Advanced Stardist Model Parameters
-    
-    Attributes:
-        sparse: If true, aggregate probabilities/distances sparsely during tiled
-            prediction to save memory (recommended).
-        prob_thresh: Consider only object candidates from pixels with predicted 
-            object probability above this threshold.
-        nms_thresh: Perform non-maximum suppression (NMS) that 
-            considers two objects to be the same when their area/surface 
-            overlap exceeds this threshold.
-        normalization: Perform non-maximum suppression that considers two objects 
-            to be the same when their area/surface overlap exceeds this threshold.
-        scale: Scale the input image internally by a tuple of floats and rescale 
-            the output accordingly. Useful if the Stardist model has been trained 
-            on images with different scaling. E.g. (z, y, x) = (1.0, 0.5, 0.5).
-    """
-    sparse: Optional[bool] = True
-    prob_thresh: Optional[float] = None
-    nms_thresh: Optional[float] = None
-    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
     
 
 def _normalize_stardist_channel(
