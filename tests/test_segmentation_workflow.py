@@ -53,7 +53,7 @@ def test_stardist_segmentation_workflow_2d(test_data_dir_2d):
     with pytest.raises(OverwriteNotAllowedError):
         stardist_segmentation(
             zarr_url=zarr_url,
-            level=2,
+            level=4,
             channel=channel,
             input_ROI_table=input_ROI_table,
             model_type=stardist_model,
@@ -100,12 +100,12 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
     
     stardist_segmentation(
         zarr_url=zarr_url,
-        level=0,
+        level=4,
         channel=channel,
         input_ROI_table=input_ROI_table,
         model_type=stardist_model,
         use_masks=False,
-        output_label_name="nuclei_stardist_lvl0_tiled",
+        output_label_name=output_label_name,
         advanced_stardist_model_params=advanced_stardist_model_params,
         overwrite=True,
     )

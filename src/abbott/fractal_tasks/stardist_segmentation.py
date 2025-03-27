@@ -55,7 +55,6 @@ from fractal_tasks_core.roi import (
 )
 from fractal_tasks_core.roi import is_ROI_table_valid
 from fractal_tasks_core.roi import load_region
-from fractal_tasks_core.roi import convert_indices_to_regions
 from fractal_tasks_core.tables import write_table
 
 from fractal_tasks_core.utils import rescale_datasets
@@ -120,6 +119,7 @@ def segment_ROI(
             nms_thresh=advanced_stardist_model_params.nms_thresh,
             scale=scale,
             n_tiles=n_tiles,
+            show_tile_progress=advanced_stardist_model_params.show_tile_progress,
             verbose=advanced_stardist_model_params.verbose,
             predict_kwargs=advanced_stardist_model_params.predict_kwargs,
             nms_kwargs=advanced_stardist_model_params.nms_kwargs,
