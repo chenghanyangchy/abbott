@@ -43,7 +43,6 @@ def test_upsample_label_image_same_resolutions(test_data_dir_3d):
         zarr_dir="",
         reference_acquisition=reference_acquisition,
     )["parallelization_list"]
-    print(parallelization_list)
 
     for param in parallelization_list:
         upsample_label_image(
@@ -62,7 +61,6 @@ def test_upsample_label_image_lower_resolution(test_data_dir_3d):
     label_name = "emb_linked"
 
     zarr_url = zarr_urls[0]
-    # Remove level 0 and rename level 1 to 0
     label_zarr_url = Path(f"{zarr_url}/labels/{label_name}")
     label_image = da.from_zarr(f"{label_zarr_url}/1").compute()
 
@@ -147,7 +145,6 @@ def test_upsample_label_image_lower_resolution(test_data_dir_3d):
         zarr_dir="",
         reference_acquisition=2,
     )["parallelization_list"]
-    print(parallelization_list)
 
     for param in parallelization_list:
         upsample_label_image(

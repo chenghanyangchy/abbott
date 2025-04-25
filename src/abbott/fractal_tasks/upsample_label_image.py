@@ -1,4 +1,4 @@
-"""Fractal task to upsample a label image to highest image channel resolution."""
+"""Fractal task to upsample a label image to highest image resolution."""
 
 import logging
 from pathlib import Path
@@ -90,15 +90,13 @@ def upsample_label_image(
     ROI_table_path = f"{zarr_url}/tables/{input_ROI_table}"
     ROI_table = ad.read_zarr(ROI_table_path)
 
-    # TODO: Perform some checks on the ROI table
-
     # Read attributes from zarr_url NGFF metadata
-    ngff_image_meta = load_NgffImageMeta(str(zarr_url))
+    ngff_image_meta = load_NgffImageMeta(zarr_url)
     num_levels = ngff_image_meta.num_levels
     coarsening_xy = ngff_image_meta.coarsening_xy
     full_res_pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=level)
 
-    # Load ZYX data as reference for shape etc.
+    # Load ZYX image data as reference for shape etc.
     # Workaround for #788: Only load channel index when there is a channel
     # dimension
     if ngff_image_meta.axes_names[0] != "c":
@@ -108,13 +106,13 @@ def upsample_label_image(
 
     logger.info(f"{data_zyx.shape=}")
 
-    # Read attributes from label zarr url NGFF metadata
-    label_ngff_image_meta = load_NgffImageMeta(str(label_zarr_url))
+    # Read attributes from label_zarr_url NGFF metadata
+    label_ngff_image_meta = load_NgffImageMeta(label_zarr_url.as_posix())
     actual_res_pxl_sizes_zyx = label_ngff_image_meta.get_pixel_sizes_zyx(level=level)
 
     # Check if upsampling is needed
     if actual_res_pxl_sizes_zyx == full_res_pxl_sizes_zyx:
-        logger.info("Label image already at full resolution. " "No upsampling needed.")
+        logger.info("Label image already at full resolution. No upsampling needed.")
         return
 
     # Rescale datasets (only relevant for level>0)
@@ -131,6 +129,7 @@ def upsample_label_image(
         remove_channel_axis=True,
     )
 
+    # Prepare label attributes
     label_attrs = {
         "image-label": {
             "version": __OME_NGFF_VERSION__,
@@ -150,7 +149,7 @@ def upsample_label_image(
         ],
     }
 
-    # Prepare new output label path
+    # Prepare new output label
     image_group = zarr.group(zarr_url)
 
     label_group = prepare_label_group(
@@ -184,7 +183,13 @@ def upsample_label_image(
         dimension_separator="/",
     )
 
-    print(f"mask will have shape {data_zyx.shape} " f"and chunks {data_zyx.chunks}")
+    logger.info(
+        f"mask will have shape {data_zyx.shape} " f"and chunks {data_zyx.chunks}"
+    )
+
+    ##############
+    #  Start upsampling
+    ##############
 
     # Create list of indices for 3D ROIs spanning the entire Z direction
     list_indices = convert_ROI_table_to_indices(
@@ -197,48 +202,42 @@ def upsample_label_image(
     check_valid_ROI_indices(list_indices, input_ROI_table)
     num_ROIs = len(list_indices)
 
-    # 1) Upsampling
     label_dask = da.from_zarr(f"{label_zarr_url}/{level}")
 
-    # Loop over the list of indices and perform upsampling
+    # Loop over the list of indices and perform upsampling for each ROI
     if output_ROI_table:
         bbox_dataframe_list = []
     logger.info(f"Now starting loop over {num_ROIs} ROIs")
 
     for i_ROI, indices in enumerate(list_indices):
         region = convert_indices_to_regions(indices)
-        origin_zyx = tuple(s.start for s in region)
 
         logger.info(f"Now processing ROI {i_ROI+1}/{num_ROIs}")
 
-        # Upsampling
+        # Compute upsampled label image
         label_image = load_region(data_zyx=label_dask, region=region, compute=True)
-
         new_label_image, zoom_factor = upsample(
             label_image, actual_res_pxl_sizes_zyx, full_res_pxl_sizes_zyx
         )
+        logger.info(f"Finished upsampling for ROI {i_ROI + 1}/{num_ROIs}.")
 
-        logger.info(f"Finished expansion for ROI {i_ROI + 1}/{num_ROIs}.")
-
-        if output_ROI_table:
-            bbox_df = array_to_bounding_box_table(
-                new_label_image,
-                full_res_pxl_sizes_zyx,
-                origin_zyx=origin_zyx,
-            )
-
-            bbox_dataframe_list.append(bbox_df)
-
-        # Make sure the region is properly adjusted to match the array shape
-        # Calculate the appropriate region for the upsampled data
+        # We also need to upsample the region
         upsampled_region = []
         for i, (reg, z) in enumerate(zip(region, zoom_factor)):
             start = reg.start * z
             stop = min(start + new_label_image.shape[i], mask_zarr.shape[i])
             upsampled_region.append(slice(start, stop))
 
-        print(region)
-        print(upsampled_region)
+        upsampled_origin_zyx = tuple(s.start for s in upsampled_region)
+
+        if output_ROI_table:
+            bbox_df = array_to_bounding_box_table(
+                new_label_image,
+                full_res_pxl_sizes_zyx,
+                origin_zyx=upsampled_origin_zyx,
+            )
+
+            bbox_dataframe_list.append(bbox_df)
 
         # Compute and store 0-th level to disk
         da.array(new_label_image).to_zarr(
@@ -248,7 +247,7 @@ def upsample_label_image(
         )
 
     logger.info(
-        f"Label expansion done for {output_label_name=}." "now building pyramids."
+        f"Label upsampling done for {output_label_name=} now building pyramids."
     )
 
     # Starting from on-disk highest-resolution data, build and write to disk a
@@ -258,13 +257,13 @@ def upsample_label_image(
         overwrite=overwrite,
         num_levels=num_levels,
         coarsening_xy=coarsening_xy,
+        chunksize=chunks,
         aggregation_function=np.max,
     )
     logger.info("End building pyramids")
 
     if output_ROI_table:
         bbox_table = create_roi_table_from_df_list(bbox_dataframe_list)
-
         # Write to zarr group
         image_group = zarr.group(zarr_url)
         logger.info(
@@ -283,6 +282,8 @@ def upsample_label_image(
             overwrite=overwrite,
             table_attrs=table_attrs,
         )
+
+    logger.info(f"End upsampling labels task for {zarr_url}/labels/{output_label_name}")
 
 
 def upsample(label_image_low_res, low_res_pixel_size, full_res_pixel_size):

@@ -11,9 +11,8 @@
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""
-Image segmentation via Stardist library.
-"""
+"""Image segmentation via Stardist library."""
+
 import logging
 import os
 import time
@@ -21,47 +20,42 @@ from typing import Optional
 
 import anndata as ad
 import dask.array as da
+import fractal_tasks_core
 import numpy as np
 import zarr
-from pydantic import Field, validate_call
-
-from stardist.models import StarDist2D, StarDist3D
-import scipy.ndimage
-
-from abbott.segmentation.io_models import (StardistpretrainedModel, 
-                                           StardistModels,
-                                           StardistChannelInputModel,
-                                           StardistModelParams)
-
-from abbott.segmentation.stardist_utils import (StardistCustomNormalizer,
-                                                _normalize_stardist_channel)
-
-from abbott.segmentation.fractal_helper_tasks import masked_loading_wrapper
-
-import fractal_tasks_core
 from fractal_tasks_core.labels import prepare_label_group
 from fractal_tasks_core.ngff import load_NgffImageMeta
 from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     array_to_bounding_box_table,
-)
-from fractal_tasks_core.roi import check_valid_ROI_indices
-from fractal_tasks_core.roi import (
+    check_valid_ROI_indices,
     convert_ROI_table_to_indices,
-)
-from fractal_tasks_core.roi import create_roi_table_from_df_list
-from fractal_tasks_core.roi import (
+    create_roi_table_from_df_list,
     find_overlaps_in_ROI_indices,
+    is_ROI_table_valid,
+    load_region,
 )
-from fractal_tasks_core.roi import is_ROI_table_valid
-from fractal_tasks_core.roi import load_region
 from fractal_tasks_core.tables import write_table
-
 from fractal_tasks_core.utils import rescale_datasets
+from pydantic import Field, validate_call
+from stardist.models import StarDist2D, StarDist3D
+
+from abbott.segmentation.fractal_helper_tasks import masked_loading_wrapper
+from abbott.segmentation.io_models import (
+    StardistChannelInputModel,
+    StardistModelParams,
+    StardistModels,
+    StardistpretrainedModel,
+)
+from abbott.segmentation.stardist_utils import (
+    StardistCustomNormalizer,
+    _normalize_stardist_channel,
+)
 
 logger = logging.getLogger(__name__)
 
 __OME_NGFF_VERSION__ = fractal_tasks_core.__OME_NGFF_VERSION__
+
 
 def segment_ROI(
     x: np.ndarray,
@@ -71,10 +65,9 @@ def segment_ROI(
     normalization: StardistCustomNormalizer = StardistCustomNormalizer(),
     label_dtype: Optional[np.dtype] = None,
     relabeling: bool = True,
-    advanced_stardist_model_params: StardistModelParams = StardistModelParams(),  # noqa: E501
+    advanced_stardist_model_params: StardistModelParams = StardistModelParams(),
 ) -> np.ndarray:
-    """
-    Internal function that runs Stardist segmentation for a single ROI.
+    """Internal function that runs Stardist segmentation for a single ROI.
 
     Args:
         x: 3D numpy array.
@@ -87,43 +80,40 @@ def segment_ROI(
         normalization: By default, stardist internal normalization is performed.
             With the "custom" option, you can either provide your
             own rescaling percentiles or fixed rescaling upper and lower
-            bound integers. 
+            bound integers.
         label_dtype: Label images are cast into this `np.dtype`.
         relabeling: Whether relabeling based on num_labels_tot is performed.
         advanced_stardist_model_params: Advanced stardist model parameters
             that are passed to the Stardist `model.predict_instances` method.
     """
-
     # Write some debugging info
     logger.info(
-        "[segment_ROI] START |"
-        f" x: {type(x)}, {x.shape} |"
-        f" {normalization.type=}"
+        "[segment_ROI] START |" f" x: {type(x)}, {x.shape} |" f" {normalization.type=}"
     )
     x = _normalize_stardist_channel(x, normalization)
-    
+
     # make input 2D for stardist if not do_3D is True
     scale = advanced_stardist_model_params.scale
     n_tiles = advanced_stardist_model_params.n_tiles
     if not do_3D:
         x = np.squeeze(x)
-        scale = tuple(scale[1:]) 
+        scale = tuple(scale[1:])
         n_tiles = tuple(n_tiles[1:])
 
     # Actual labeling
     t0 = time.perf_counter()
     mask, _ = model.predict_instances(
-            x,
-            sparse=advanced_stardist_model_params.sparse,
-            prob_thresh=advanced_stardist_model_params.prob_thresh,
-            nms_thresh=advanced_stardist_model_params.nms_thresh,
-            scale=scale,
-            n_tiles=n_tiles,
-            show_tile_progress=advanced_stardist_model_params.show_tile_progress,
-            verbose=advanced_stardist_model_params.verbose,
-            predict_kwargs=advanced_stardist_model_params.predict_kwargs,
-            nms_kwargs=advanced_stardist_model_params.nms_kwargs,
-        )
+        x,
+        sparse=advanced_stardist_model_params.sparse,
+        prob_thresh=advanced_stardist_model_params.prob_thresh,
+        nms_thresh=advanced_stardist_model_params.nms_thresh,
+        scale=scale,
+        n_tiles=n_tiles,
+        show_tile_progress=advanced_stardist_model_params.show_tile_progress,
+        verbose=advanced_stardist_model_params.verbose,
+        predict_kwargs=advanced_stardist_model_params.predict_kwargs,
+        nms_kwargs=advanced_stardist_model_params.nms_kwargs,
+    )
 
     if mask.ndim == 2:
         # If we get a 2D image, we still return it as a 3D array
@@ -183,8 +173,7 @@ def stardist_segmentation(
     ),
     overwrite: bool = True,
 ) -> None:
-    """
-    Run Stardist segmentation on the ROIs of a single OME-Zarr image.
+    """Run Stardist segmentation on the ROIs of a single OME-Zarr image.
 
     Args:
         zarr_url: Path or url to the individual OME-Zarr image to be processed.
@@ -211,7 +200,7 @@ def stardist_segmentation(
             labels. ROI tables should have `ROI` in their name.
         output_label_name: Name of the output label image (e.g. `"nuclei"`).
         model_type: Parameter of `Stardist_ModelNames` class. Defines which model
-            should be used. E.g. `2D_versatile_fluo`, `2D_versatile_he`, 
+            should be used. E.g. `2D_versatile_fluo`, `2D_versatile_he`,
             `2D_demo`, `3D_demo`.
         pretrained_model: Allows you to specify the path  of
             a custom trained stardist model (takes precedence over `model_type`)
@@ -228,9 +217,11 @@ def stardist_segmentation(
     logger.info(f"Processing {zarr_url=}")
 
     # Preliminary checks on Stardist model
-    if pretrained_model: 
+    if pretrained_model:
         if not os.path.exists(pretrained_model.base_fld):
-            raise ValueError(f"{pretrained_model.base_fld=} base folder does not exist.")
+            raise ValueError(
+                f"{pretrained_model.base_fld=} base folder does not exist."
+            )
 
     # Read attributes from NGFF metadata
     ngff_image_meta = load_NgffImageMeta(zarr_url)
@@ -240,12 +231,9 @@ def stardist_segmentation(
     actual_res_pxl_sizes_zyx = ngff_image_meta.get_pixel_sizes_zyx(level=level)
     logger.info(f"NGFF image has {num_levels=}")
     logger.info(f"NGFF image has {coarsening_xy=}")
+    logger.info(f"NGFF image has full-res pixel sizes {full_res_pxl_sizes_zyx}")
     logger.info(
-        f"NGFF image has full-res pixel sizes {full_res_pxl_sizes_zyx}"
-    )
-    logger.info(
-        f"NGFF image has level-{level} pixel sizes "
-        f"{actual_res_pxl_sizes_zyx}"
+        f"NGFF image has level-{level} pixel sizes " f"{actual_res_pxl_sizes_zyx}"
     )
 
     # Find channel index
@@ -268,10 +256,8 @@ def stardist_segmentation(
     # dimension
     if ngff_image_meta.axes_names[0] != "c":
         data_zyx = da.from_zarr(f"{zarr_url}/{level}")
-        data_zyx_full_res = da.from_zarr(f"{zarr_url}/0")
     else:
         data_zyx = da.from_zarr(f"{zarr_url}/{level}")[ind_channel]
-        data_zyx_full_res = da.from_zarr(f"{zarr_url}/0")[ind_channel]
     logger.info(f"{data_zyx.shape=}")
 
     # Read ROI table
@@ -279,9 +265,7 @@ def stardist_segmentation(
     ROI_table = ad.read_zarr(ROI_table_path)
 
     # Perform some checks on the ROI table
-    valid_ROI_table = is_ROI_table_valid(
-        table_path=ROI_table_path, use_masks=use_masks
-    )
+    valid_ROI_table = is_ROI_table_valid(table_path=ROI_table_path, use_masks=use_masks)
     if use_masks and not valid_ROI_table:
         logger.info(
             f"ROI table at {ROI_table_path} cannot be used for masked "
@@ -339,7 +323,7 @@ def stardist_segmentation(
                 "name": output_label_name,
                 "version": __OME_NGFF_VERSION__,
                 "axes": [
-                    ax.dict()
+                    ax.model_dump()
                     for ax in ngff_image_meta.multiscale.axes
                     if ax.type != "channel"
                 ],
@@ -358,9 +342,7 @@ def stardist_segmentation(
         logger=logger,
     )
 
-    logger.info(
-        f"Helper function `prepare_label_group` returned {label_group=}"
-    )
+    logger.info(f"Helper function `prepare_label_group` returned {label_group=}")
     current_label_path = f"{zarr_url}/labels/{output_label_name}/0"
     logger.info(f"Output label path: {current_label_path}")
     store = zarr.storage.FSStore(current_label_path)
@@ -384,21 +366,24 @@ def stardist_segmentation(
     )
 
     logger.info(
-        f"mask will have shape {data_zyx.shape} "
-        f"and chunks {data_zyx.chunks}"
+        f"mask will have shape {data_zyx.shape} " f"and chunks {data_zyx.chunks}"
     )
 
     # Initialize stardist
-    # gpu = advanced_stardistmodel_params.use_gpu 
+    # gpu = advanced_stardistmodel_params.use_gpu
     if pretrained_model:
         if do_3D:
-            model = StarDist3D(None, 
-                               name=pretrained_model.pretrained_model_name,
-                               basedir=pretrained_model.base_fld)
+            model = StarDist3D(
+                None,
+                name=pretrained_model.pretrained_model_name,
+                basedir=pretrained_model.base_fld,
+            )
         else:
-            model = StarDist2D(None,
-                               name=pretrained_model.pretrained_model_name, 
-                               basedir=pretrained_model.base_fld)
+            model = StarDist2D(
+                None,
+                name=pretrained_model.pretrained_model_name,
+                basedir=pretrained_model.base_fld,
+            )
     else:
         if do_3D:
             model = StarDist3D.from_pretrained(model_type.value)
@@ -484,82 +469,9 @@ def stardist_segmentation(
             region=region,
             compute=True,
         )
-    
-    # upsample label image to full resolution if not already
-    if level != 0:
-        print(f"Upsampling start for {zarr_url}")
-        label_array_low_res = da.from_zarr(current_label_path).compute()
-        label_array_high_res = upsample_label_image(label_array_low_res, 
-                                                    actual_res_pxl_sizes_zyx,
-                                                    full_res_pxl_sizes_zyx)
-    
-        if ngff_image_meta.axes_names[0] != "c":
-            new_datasets = rescale_datasets(
-                datasets=[ds.model_dump() for ds in ngff_image_meta.datasets],
-                coarsening_xy=coarsening_xy,
-                reference_level=0,
-                remove_channel_axis=False,
-            )
-        else:
-            new_datasets = rescale_datasets(
-                datasets=[ds.model_dump() for ds in ngff_image_meta.datasets],
-                coarsening_xy=coarsening_xy,
-                reference_level=0,
-                remove_channel_axis=True,
-            )
 
-        label_attrs = {
-            "image-label": {
-                "version": __OME_NGFF_VERSION__,
-                "source": {"image": "../../"},
-            },
-            "multiscales": [
-                {
-                    "name": output_label_name,
-                    "version": __OME_NGFF_VERSION__,
-                    "axes": [
-                        ax.dict()
-                        for ax in ngff_image_meta.multiscale.axes
-                        if ax.type != "channel"
-                    ],
-                    "datasets": new_datasets,
-                }
-            ],
-        }
-
-        label_group = prepare_label_group(
-            image_group,
-            output_label_name,
-            overwrite=True,
-            label_attrs=label_attrs,
-            logger=logger,
-        )
-        
-        shape_full_res = data_zyx_full_res.shape
-        if len(shape_full_res) == 2:
-            shape_full_res = (1, *shape_full_res)
-        chunks_full_res = data_zyx_full_res.chunksize
-        if len(chunks_full_res) == 2:
-            chunks_full_res = (1, *chunks_full_res)
-        mask_zarr = zarr.create(
-            shape=shape_full_res,
-            chunks=chunks_full_res,
-            dtype=label_dtype,
-            store=store,
-            overwrite=True,
-            dimension_separator="/",
-        )
-        
-        # Compute and store 0-th level to disk
-        da.array(label_array_high_res).to_zarr(
-            url=mask_zarr,
-            compute=True,
-        )
-        print(f"Upsampling end for {zarr_url}")
-        
     logger.info(
-        f"End stardist_segmentation task for {zarr_url}, "
-        "now building pyramids."
+        f"End stardist_segmentation task for {zarr_url}, " "now building pyramids."
     )
 
     # Starting from on-disk highest-resolution data, build and write to disk a
@@ -597,16 +509,7 @@ def stardist_segmentation(
             table_attrs=table_attrs,
         )
 
-def upsample_label_image(label_image_low_res, low_res_pixel_size, full_res_pixel_size):
-    """
-    Upsample low res label image to full res (level 0)
-    """
-    zoom_factor = np.floor_divide(low_res_pixel_size, full_res_pixel_size)
-    upsampled_label_image = scipy.ndimage.zoom(label_image_low_res, zoom_factor, order=0)
-    
-    return upsampled_label_image
 
-    
 if __name__ == "__main__":
     from fractal_tasks_core.tasks._utils import run_fractal_task
 
