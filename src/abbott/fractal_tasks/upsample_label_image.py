@@ -21,6 +21,7 @@ from fractal_tasks_core.roi import (
     load_region,
 )
 from fractal_tasks_core.tables import write_table
+from fractal_tasks_core.tasks.io_models import InitArgsRegistrationConsensus
 from fractal_tasks_core.utils import rescale_datasets
 from pydantic import validate_call
 from scipy.ndimage import zoom
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 def upsample_label_image(
     # Fractal parameters
     zarr_url: str,
+    init_args: InitArgsRegistrationConsensus,
     # Core parameters
     label_name: str,
     input_ROI_table: str,
@@ -54,7 +56,11 @@ def upsample_label_image(
     Args:
         zarr_url: Path or url to the individual OME-Zarr image to be processed.
             (standard argument for Fractal tasks, managed by Fractal server).
-        label_name: Name of the label image to be upsampled.
+        init_args: Intialization arguments provided by
+            `init_group_by_well_for_multiplexing`. They contain the
+            reference_zarr_url that contains the label image to upsample.
+            (standard argument for Fractal tasks, managed by Fractal server).
+        label_name: Name of the label image to upsample.
         output_label_name: Optionally new label name for the upsampled label image.
         input_ROI_table: Name of the ROI table over which the task loops to
             upsample label images. Examples: `FOV_ROI_table` => loop over
@@ -65,15 +71,15 @@ def upsample_label_image(
             which will contain the bounding boxes of the newly upsampled
             labels. ROI tables should have `ROI` in their name. Can be the same
             as `input_ROI_table` if it should be overwritten.
-        level: Level of the OME-Zarr label to upsample from. Valid choices are
-            "0", "1", etc. (depending on which levels are available in the
-            OME-Zarr label). Currently only implemented for "0".
+        level: Desired pyramid level of the OME-Zarr label image. Pyramid level
+            "0" resolution is retrieved from OME-Zarr image metadata.
+            Currently only implemented for "0".
         overwrite: If `True`, overwrite existing label.
     """
-    logger.info(f"Starting label upsampling for {zarr_url=} and " f"label {label_name}")
+    logger.info(f"Starting label upsampling for {zarr_url=} and {label_name=}")
 
     if level != 0:
-        raise NotImplementedError("Only level 0 is supported at the moment")
+        raise NotImplementedError("Only level 0 is supported at the moment.")
 
     # Check if label actually exists
     label_zarr_url = Path(f"{zarr_url}/labels/{label_name}")

@@ -10,13 +10,12 @@
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""Initializes the parallelization list for a single acquisition round"""
+"""Init upsample label module based on tasks-core."""
 
 import logging
-from typing import Any
 
-from fractal_tasks_core.utils import (
-    create_well_acquisition_dict,
+from fractal_tasks_core.tasks.init_group_by_well_for_multiplexing import (
+    init_group_by_well_for_multiplexing,
 )
 from pydantic import validate_call
 
@@ -31,8 +30,8 @@ def init_select_acquisition_round(
     zarr_dir: str,
     # Core parameters
     reference_acquisition: int = 0,
-) -> dict[str, list[dict[str, Any]]]:
-    """Initialized selected multiplexing round (per well).
+) -> dict[str, list[str]]:
+    """Initialized select acquisition for label upsampling task
 
     This task prepares a parallelization list of all zarr_urls that need to be
     used to upsample the label image.
@@ -49,36 +48,19 @@ def init_select_acquisition_round(
         zarr_dir: path of the directory where the new OME-Zarrs will be
             created. Not used by this task.
             (standard argument for Fractal tasks, managed by Fractal server).
-        reference_acquisition: Which acquisition round to pass to the parallelization
-            list. Needs to match the acquisition metadata in the OME-Zarr image.
+        reference_acquisition: Which acquisition contains the label image to
+            upsample. Needs to match the acquisition metadata in the OME-Zarr
+            image.
 
     Returns:
         task_output: Dictionary for Fractal server that contains a
             parallelization list.
     """
-    logger.info(f"Running `init_upsample_label_image` for {zarr_urls=}")
-    image_groups = create_well_acquisition_dict(zarr_urls)
-
-    # Create the parallelization list
-    parallelization_list = []
-    for key, image_group in image_groups.items():
-        # Assert that all image groups have the reference acquisition present
-        if reference_acquisition not in image_group.keys():
-            raise ValueError(
-                f"Upsampling with {reference_acquisition=} can only work if "
-                "all wells have the reference acquisition present. It was not "
-                f"found for well {key}."
-            )
-        # Add only the reference acquisition to the parallelization list
-        for acquisition, zarr_url in image_group.items():
-            if acquisition == reference_acquisition:
-                parallelization_list.append(
-                    dict(
-                        zarr_url=zarr_url,
-                    )
-                )
-
-    return dict(parallelization_list=parallelization_list)
+    return init_group_by_well_for_multiplexing(
+        zarr_urls=zarr_urls,
+        zarr_dir=zarr_dir,
+        reference_acquisition=reference_acquisition,
+    )
 
 
 if __name__ == "__main__":
