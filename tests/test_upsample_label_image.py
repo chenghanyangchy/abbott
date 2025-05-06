@@ -47,6 +47,7 @@ def test_upsample_label_image_same_resolutions(test_data_dir_3d):
     for param in parallelization_list:
         upsample_label_image(
             zarr_url=param["zarr_url"],
+            init_args=param["init_args"],
             label_name="emb_linked",
             output_label_name="emb_linked_upsampled",
             input_ROI_table="emb_ROI_table_2_linked",
@@ -149,6 +150,7 @@ def test_upsample_label_image_lower_resolution(test_data_dir_3d):
     for param in parallelization_list:
         upsample_label_image(
             zarr_url=param["zarr_url"],
+            init_args=param["init_args"],
             label_name=label_name,
             output_label_name="emb_linked_upsampled",
             input_ROI_table="FOV_ROI_table",

@@ -1121,7 +1121,7 @@
     {
       "name": "Upsample Label Image",
       "category": "Image Processing",
-      "docs_info": "### Purpose\n- Upsamples segmented **labels** in 2D or 3D images to the highest image resolution.\n- Useful if segmentation was performed at a lower resolution (e.g. level 1).\n\n### Outputs\n- A new **upsampled label image** with resolution matching those of reference images.\n- Preserves the integer label values from the original segmentation.\n",
+      "docs_info": "### Purpose\n- Upsamples segmented **labels** in 2D or 3D images to the highest image resolution.\n- Useful if segmentation was performed at a lower resolution (e.g. level 1).\n\n### Outputs\n- A new **upsampled label image** with resolution matching those of the OME-Zarr images.\n- Preserves the integer label values from the original segmentation.\n",
       "executable_non_parallel": "fractal_tasks/init_select_acquisition_round.py",
       "executable_parallel": "fractal_tasks/upsample_label_image.py",
       "meta_parallel": {
@@ -1148,7 +1148,7 @@
             "default": 0,
             "title": "Reference Acquisition",
             "type": "integer",
-            "description": "Which acquisition round to pass to the parallelization list. Needs to match the acquisition metadata in the OME-Zarr image."
+            "description": "Which acquisition contains the label image to upsample. Needs to match the acquisition metadata in the OME-Zarr image."
           }
         },
         "required": [
@@ -1159,6 +1159,25 @@
         "title": "InitSelectAcquisitionRound"
       },
       "args_schema_parallel": {
+        "$defs": {
+          "InitArgsRegistrationConsensus": {
+            "description": "Registration consensus init args.",
+            "properties": {
+              "zarr_url_list": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Zarr Url List",
+                "type": "array"
+              }
+            },
+            "required": [
+              "zarr_url_list"
+            ],
+            "title": "InitArgsRegistrationConsensus",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "properties": {
           "zarr_url": {
@@ -1166,10 +1185,15 @@
             "type": "string",
             "description": "Path or url to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
           },
+          "init_args": {
+            "$ref": "#/$defs/InitArgsRegistrationConsensus",
+            "title": "Init Args",
+            "description": "Intialization arguments provided by `init_group_by_well_for_multiplexing`. They contain the reference_zarr_url that contains the label image to upsample. (standard argument for Fractal tasks, managed by Fractal server)."
+          },
           "label_name": {
             "title": "Label Name",
             "type": "string",
-            "description": "Name of the label image to be upsampled."
+            "description": "Name of the label image to upsample."
           },
           "input_ROI_table": {
             "title": "Input Roi Table",
@@ -1190,7 +1214,7 @@
             "default": 0,
             "title": "Level",
             "type": "integer",
-            "description": "Level of the OME-Zarr label to upsample from. Valid choices are \"0\", \"1\", etc. (depending on which levels are available in the OME-Zarr label). Currently only implemented for \"0\"."
+            "description": "Desired pyramid level of the OME-Zarr label image. Pyramid level \"0\" resolution is retrieved from OME-Zarr image metadata. Currently only implemented for \"0\"."
           },
           "overwrite": {
             "default": true,
@@ -1201,6 +1225,7 @@
         },
         "required": [
           "zarr_url",
+          "init_args",
           "label_name",
           "input_ROI_table"
         ],
