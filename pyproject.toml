@@ -35,6 +35,7 @@ dependencies = [
     "ngio<0.2.0", 
     "scikit-image",
     "fsspec",
+    "fractal-task-tools == 0.0.12"
 ]
 
 # Optional dependencies (e.g. for `pip install -e ".[dev]"`, see
