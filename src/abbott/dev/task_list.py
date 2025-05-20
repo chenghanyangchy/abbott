@@ -95,6 +95,18 @@ TASK_LIST = [
         ],
         docs_info="file:docs_info/stardist_segmentation.md",
     ),
+    ParallelTask(
+        name="Seeded Segmentation",
+        executable="fractal_tasks/seeded_segmentation.py",
+        meta={"cpus_per_task": 4, "mem": 16000},
+        category="Segmentation",
+        tags=[
+            "scikit-image",
+            "itk," "2D",
+            "3D",
+        ],
+        docs_info="file:docs_info/seeded_segmentation.md",
+    ),
     CompoundTask(
         name="Upsample Label Image",
         executable_init="fractal_tasks/init_select_acquisition_round.py",
