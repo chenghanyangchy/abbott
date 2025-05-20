@@ -206,9 +206,32 @@ def test_seeded_segmentation_workflow_3d(test_data_dir_3d):
             overwrite=False,
         )
 
-    # Test with no channel as input
+    # Test with not existing label_name
+    seeded_segmentation(
+        zarr_url=zarr_url,
+        level=4,
+        label_name="not_existing_label",
+        channel=channel,
+        input_ROI_table=input_ROI_table,
+        output_label_name=output_label_name,
+        relabeling=True,
+        use_masks=True,
+        advanced_model_params=advanced_model_params,
+        overwrite=True,
+    )
+
+    # Test with no channel & morphological filter
     channel = SeededSegmentationChannelInputModel(
         normalize=normalize,
+    )
+
+    advanced_model_params = dict(
+        filter_radius=None,
+        compactness=5,
+        filter_params=dict(
+            filter_type=FilterType.EROSION,
+            filter_value=None,
+        ),
     )
 
     seeded_segmentation(

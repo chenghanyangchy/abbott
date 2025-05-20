@@ -225,7 +225,7 @@ def seeded_segmentation(
     # Load label image
     try:
         label_zyx = da.from_zarr(f"{zarr_url}/labels/{label_name}/{level}")
-    except KeyError:
+    except TypeError:
         return
 
     # Find channel index
@@ -343,7 +343,7 @@ def seeded_segmentation(
         chunks=chunks,
         dtype=label_dtype,
         store=store,
-        overwrite=False,
+        overwrite=overwrite,
         dimension_separator="/",
     )
 
