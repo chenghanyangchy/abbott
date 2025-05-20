@@ -24,7 +24,7 @@ def zenodo_zarr(testdata_path: Path) -> str:
     """
 
     # 1) Download Zarrs from Zenodo
-    DOI = "10.5281/zenodo.14883998"
+    DOI = "10.5281/zenodo.15343366"
     DOI_slug = DOI.replace("/", "_").replace(".", "_")
     rootfolder = testdata_path / DOI_slug
     folder = rootfolder / "AssayPlate_Greiner_CELLSTAR655090.zarr"
@@ -66,7 +66,7 @@ def zenodo_zarr_stardist(testdata_path: Path) -> list[str]:
     """
 
     # 1 Download Zarrs from Zenodo
-    DOI = "10.5281/zenodo.10257149"
+    DOI = "10.5281/zenodo.13305156"
     DOI_slug = DOI.replace("/", "_").replace(".", "_")
     platenames = ["plate.zarr", "plate_mip.zarr"]
     rootfolder = testdata_path / DOI_slug

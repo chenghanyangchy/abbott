@@ -11,10 +11,9 @@
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""Image segmentation via Stardist library."""
+"""Secondary seeded segmentation task."""
 
 import logging
-import os
 import time
 from typing import Optional
 
@@ -38,18 +37,18 @@ from fractal_tasks_core.roi import (
 from fractal_tasks_core.tables import write_table
 from fractal_tasks_core.utils import rescale_datasets
 from pydantic import Field, validate_call
-from stardist.models import StarDist2D, StarDist3D
+from skimage.segmentation import watershed
 
+from abbott.io.conversions import to_itk, to_labelmap, to_numpy
+from abbott.io.itk_image import apply_image_filter, median
 from abbott.segmentation.fractal_helper_tasks import masked_loading_wrapper
 from abbott.segmentation.io_models import (
-    StardistChannelInputModel,
-    StardistModelParams,
-    StardistModels,
-    StardistpretrainedModel,
+    SeededSegmentationChannelInputModel,
+    SeededSegmentationParams,
 )
 from abbott.segmentation.segmentation_utils import (
-    StardistCustomNormalizer,
-    _normalize_stardist_channel,
+    SeededSegmentationCustomNormalizer,
+    _normalize_seeded_segmentation_channel,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,61 +59,65 @@ __OME_NGFF_VERSION__ = fractal_tasks_core.__OME_NGFF_VERSION__
 def segment_ROI(
     x: np.ndarray,
     num_labels_tot: dict[str, int],
-    model: StardistModels = None,
-    do_3D: bool = True,
-    normalization: StardistCustomNormalizer = StardistCustomNormalizer(),
+    channel: np.ndarray,
+    normalize: SeededSegmentationCustomNormalizer = SeededSegmentationCustomNormalizer(),  # noqa: E501
     label_dtype: Optional[np.dtype] = None,
+    pxl_sizes_zyx: Optional[tuple[float, float, float]] = None,
     relabeling: bool = True,
-    advanced_stardist_model_params: StardistModelParams = StardistModelParams(),
+    advanced_model_params: SeededSegmentationParams = SeededSegmentationParams(),
 ) -> np.ndarray:
-    """Internal function that runs Stardist segmentation for a single ROI.
+    """Internal function that runs seeded segmentation for a single ROI.
 
     Args:
-        x: 3D numpy array.
+        x: 4D numpy array.
         num_labels_tot: Number of labels already in total image. Used for
             relabeling purposes. Using a dict to have a mutable object that
             can be edited from within the function without having to be passed
             back through the masked_loading_wrapper.
-        model: Stardist model object.
-        do_3D: If `True`, input img is squeezed to 2D before expanded to 3D again.
-        normalization: By default, stardist internal normalization is performed.
-            With the "custom" option, you can either provide your
+        channel: (Optional) membrane channel for segmentation.
+        normalize: By default, data is normalized so 0.0=1st percentile and
+            1.0=99th percentile of image intensities in each channel.
+            This automatic normalization can lead to issues when the image to
+            be segmented is very sparse. You can turn off the default
+            rescaling. With the "custom" option, you can either provide your
             own rescaling percentiles or fixed rescaling upper and lower
             bound integers.
         label_dtype: Label images are cast into this `np.dtype`.
+        pxl_sizes_zyx: Tuple of pixel sizes.
         relabeling: Whether relabeling based on num_labels_tot is performed.
-        advanced_stardist_model_params: Advanced stardist model parameters
-            that are passed to the Stardist `model.predict_instances` method.
+        advanced_model_params: Advanced seeded segmentation model parameters.
     """
     # Write some debugging info
     logger.info(
-        "[segment_ROI] START |"
-        f" x: {type(x)}, {x.shape} |"
-        f" {normalization.norm_type=}"
+        "[segment_ROI] START |" f" x: {type(x)}, {x.shape} |" f" {normalize.norm_type=}"
     )
-    x = _normalize_stardist_channel(x, normalization)
 
-    # make input 2D for stardist if not do_3D is True
-    scale = advanced_stardist_model_params.scale
-    n_tiles = advanced_stardist_model_params.n_tiles
-    if not do_3D:
-        x = np.squeeze(x)
-        scale = tuple(scale[1:])
-        n_tiles = tuple(n_tiles[1:])
+    channel = _normalize_seeded_segmentation_channel(channel, normalize)
+
+    seeds = x
+    # Apply morphological filter to label image
+    if advanced_model_params.filter_type is not None:
+        filter_type = advanced_model_params.filter_type.value
+        filter_value = advanced_model_params.filter_value
+        seeds = apply_image_filter(
+            to_labelmap(seeds, scale=pxl_sizes_zyx),
+            filter_type=filter_type,
+            radius=filter_value,
+        )
+        seeds = to_numpy(seeds)
+
+    # Apply median filter to channel image
+    if advanced_model_params.filter_radius is not None:
+        channel = to_itk(channel, scale=pxl_sizes_zyx)
+        channel = median(channel, radius=advanced_model_params.filter_radius)
+        channel = to_numpy(channel)
 
     # Actual labeling
     t0 = time.perf_counter()
-    mask, _ = model.predict_instances(
-        x,
-        sparse=advanced_stardist_model_params.sparse,
-        prob_thresh=advanced_stardist_model_params.prob_thresh,
-        nms_thresh=advanced_stardist_model_params.nms_thresh,
-        scale=scale,
-        n_tiles=n_tiles,
-        show_tile_progress=advanced_stardist_model_params.show_tile_progress,
-        verbose=advanced_stardist_model_params.verbose,
-        predict_kwargs=advanced_stardist_model_params.predict_kwargs,
-        nms_kwargs=advanced_stardist_model_params.nms_kwargs,
+    mask = watershed(
+        image=channel,
+        markers=seeds,
+        compactness=advanced_model_params.compactness,
     )
 
     if mask.ndim == 2:
@@ -129,9 +132,6 @@ def segment_ROI(
         f" {mask.shape=},"
         f" {mask.dtype=} (then {label_dtype}),"
         f" {np.max(mask)=} |"
-        f" {advanced_stardist_model_params.scale=}"
-        f" {advanced_stardist_model_params.nms_thresh=}"
-        f" {advanced_stardist_model_params.prob_thresh=}"
     )
 
     # Shift labels and update relabeling counters
@@ -155,75 +155,59 @@ def segment_ROI(
 
 
 @validate_call
-def stardist_segmentation(
+def seeded_segmentation(
     *,
     # Fractal parameters
     zarr_url: str,
     # Core parameters
     level: int,
-    channel: StardistChannelInputModel,
+    label_name: str,
+    channel: Optional[SeededSegmentationChannelInputModel] = None,
     input_ROI_table: str = "FOV_ROI_table",
     output_ROI_table: Optional[str] = None,
-    output_label_name: Optional[str] = None,
-    # Stardist-related arguments
-    model_type: StardistModels = StardistModels.VERSATILE_FLUO_2D,
-    pretrained_model: Optional[StardistpretrainedModel] = None,
+    output_label_name: str = "cells",
+    # Seeded segmentation-related arguments
     relabeling: bool = True,
     use_masks: bool = True,
-    advanced_stardist_model_params: StardistModelParams = Field(
-        default_factory=StardistModelParams
+    advanced_model_params: SeededSegmentationParams = Field(
+        default_factory=SeededSegmentationParams
     ),
     overwrite: bool = True,
 ) -> None:
-    """Run Stardist segmentation on the ROIs of a single OME-Zarr image.
+    """Run seeded segmentation on the ROIs of a single OME-Zarr image.
 
     Args:
         zarr_url: Path or url to the individual OME-Zarr image to be processed.
             (standard argument for Fractal tasks, managed by Fractal server).
         level: Pyramid level of the image to be segmented. Choose `0` to
             process at full resolution.
-        channel: Primary channel for segmentation; requires either
-            `wavelength_id` (e.g. `A01_C01`) or `label` (e.g. `DAPI`), but not
-            both. Also contains normalization options. By default, data is
-            normalized so 0.0=1st percentile and 1.0=99th percentile of image
-            intensities in each channel.
-            This automatic normalization can lead to issues when the image to
-            be segmented is very sparse. You can turn off the default
-            rescaling. With the "custom" option, you can either provide your
-            own rescaling percentiles or fixed rescaling upper and lower
-            bound integers.
+        label_name: Name of the label image to be used as input seeds. Expected to
+            be in same zarr_url as channel image.
+        channel: Channel for segmentation; requires either
+            `wavelength_id` (e.g. `A03_C03`) or `label` (e.g. `ECadherin`),
+            but not both. Should contain the membrane marker. If no channel is
+            provided, seeded segmentation is run with np.zeros as channel input.
+            Also contains normalization options. Default is no normalization.
         input_ROI_table: Name of the ROI table over which the task loops to
-            apply stardist segmentation. Examples: `FOV_ROI_table` => loop over
-            the field of views, `organoid_ROI_table` => loop over the organoid
+            apply seeded segmentation. Examples: `FOV_ROI_table` => loop over
+            the field of views, `embryo_ROI_table` => loop over the organoid
             ROI table (generated by another task), `well_ROI_table` => process
-            the whole well as one image.
+            the whole well as one image. For seeded segmentation task it is
+            recommended to use a ROI table of type `masking_roi_table`.
         output_ROI_table: If provided, a ROI table with that name is created,
             which will contain the bounding boxes of the newly segmented
             labels. ROI tables should have `ROI` in their name.
-        output_label_name: Name of the output label image (e.g. `"nuclei"`).
-        model_type: Parameter of `Stardist_ModelNames` class. Defines which model
-            should be used. E.g. `2D_versatile_fluo`, `2D_versatile_he`,
-            `2D_demo`, `3D_demo`.
-        pretrained_model: Allows you to specify the path  of
-            a custom trained stardist model (takes precedence over `model_type`)
+        output_label_name: Name of the output label image (e.g. `"cells"`).
         relabeling: If `True`, apply relabeling so that label values are
             unique for all objects in the well.
         use_masks: If `True`, try to use masked loading and fall back to
             `use_masks=False` if the ROI table is not suitable. Masked
             loading is relevant when only a subset of the bounding box should
-            actually be processed (e.g. running within `organoid_ROI_table`).
-        advanced_stardist_model_params: Advanced Stardist model parameters
-            that are passed to the Stardist `model.eval` method.
+            actually be processed (e.g. running within `embryo_ROI_table`).
+        advanced_model_params: Advanced model parameters for seeded segmentation.
         overwrite: If `True`, overwrite the task output.
     """
     logger.info(f"Processing {zarr_url=}")
-
-    # Preliminary checks on Stardist model
-    if pretrained_model:
-        if not os.path.exists(pretrained_model.base_fld):
-            raise ValueError(
-                f"{pretrained_model.base_fld=} base folder does not exist."
-            )
 
     # Read attributes from NGFF metadata
     ngff_image_meta = load_NgffImageMeta(zarr_url)
@@ -238,30 +222,31 @@ def stardist_segmentation(
         f"NGFF image has level-{level} pixel sizes " f"{actual_res_pxl_sizes_zyx}"
     )
 
-    # Find channel index
-    omero_channel = channel.get_omero_channel(zarr_url)
-    if omero_channel:
-        ind_channel = omero_channel.index
-    else:
+    # Load label image
+    try:
+        label_zyx = da.from_zarr(f"{zarr_url}/labels/{label_name}/{level}")
+    except KeyError:
         return
 
-    # Set channel label
-    if output_label_name is None:
-        try:
-            channel_label = omero_channel.label
-            output_label_name = f"label_{channel_label}"
-        except (KeyError, IndexError):
-            output_label_name = f"label_{ind_channel}"
+    # Find channel index
+    if channel.wavelength_id is not None or channel.label is not None:
+        omero_channel = channel.get_omero_channel(zarr_url)
+        if omero_channel:
+            ind_channel = omero_channel.index
+            # Load ZYX data
+            # Workaround for #788: Only load channel index when there is a channel
+            # dimension
+            if ngff_image_meta.axes_names[0] != "c":
+                data_zyx = da.from_zarr(f"{zarr_url}/{level}")
+            else:
+                data_zyx = da.from_zarr(f"{zarr_url}/{level}")[ind_channel]
+            print("Running task with boarder marker channel")
+        else:
+            return
 
-    # Load ZYX data
-    # Workaround for #788: Only load channel index when there is a channel
-    # dimension
-    if ngff_image_meta.axes_names[0] != "c":
-        data_zyx = da.from_zarr(f"{zarr_url}/{level}")
     else:
-        data_zyx = da.from_zarr(f"{zarr_url}/{level}")[ind_channel]
-    logger.info(f"{data_zyx.shape=}")
-
+        print("No channel provided, running seeded segmentation without boarder marker")
+        data_zyx = da.zeros_like(label_zyx, shape=label_zyx.shape)
     # Read ROI table
     ROI_table_path = f"{zarr_url}/tables/{input_ROI_table}"
     ROI_table = ad.read_zarr(ROI_table_path)
@@ -294,12 +279,8 @@ def stardist_segmentation(
                 "overlaps, but we are not using masked loading."
             )
 
-    # Select 2D/3D behavior and set some parameters
-    do_3D = data_zyx.shape[0] > 1 and len(data_zyx.shape) == 3
-
     # Rescale datasets (only relevant for level>0)
     # Workaround for #788
-    # TODO: check can I keep this in with scale parameter being passed as well?
     if ngff_image_meta.axes_names[0] != "c":
         new_datasets = rescale_datasets(
             datasets=[ds.model_dump() for ds in ngff_image_meta.datasets],
@@ -335,7 +316,6 @@ def stardist_segmentation(
     }
 
     image_group = zarr.group(zarr_url)
-
     label_group = prepare_label_group(
         image_group,
         output_label_name,
@@ -347,7 +327,7 @@ def stardist_segmentation(
     logger.info(f"Helper function `prepare_label_group` returned {label_group=}")
     current_label_path = f"{zarr_url}/labels/{output_label_name}/0"
     logger.info(f"Output label path: {current_label_path}")
-    store = zarr.storage.FSStore(current_label_path)
+    store = zarr.storage.FSStore(f"{zarr_url}/labels/{output_label_name}/0")
     label_dtype = np.uint32
 
     # Ensure that all output shapes & chunks are 3D (for 2D data: (1, y, x))
@@ -371,34 +351,10 @@ def stardist_segmentation(
         f"mask will have shape {data_zyx.shape} " f"and chunks {data_zyx.chunks}"
     )
 
-    # Initialize stardist
-    # gpu = advanced_stardistmodel_params.use_gpu
-    if pretrained_model:
-        if do_3D:
-            model = StarDist3D(
-                None,
-                name=pretrained_model.pretrained_model_name,
-                basedir=pretrained_model.base_fld,
-            )
-        else:
-            model = StarDist2D(
-                None,
-                name=pretrained_model.pretrained_model_name,
-                basedir=pretrained_model.base_fld,
-            )
-    else:
-        if do_3D:
-            model = StarDist3D.from_pretrained(model_type.value)
-        else:
-            model = StarDist2D.from_pretrained(model_type.value)
-
     # Initialize other things
-    logger.info(f"Start stardist_segmentation task for {zarr_url}")
+    logger.info(f"Start seeded_segmentation task for {zarr_url}")
     logger.info(f"relabeling: {relabeling}")
-    logger.info(f"do_3D: {do_3D}")
     logger.info(f"level: {level}")
-    logger.info(f"model_type: {model_type.value}")
-    logger.info(f"pretrained_model: {pretrained_model}")
     logger.info("Total well shape/chunks:")
     logger.info(f"{data_zyx.shape}")
     logger.info(f"{data_zyx.chunks}")
@@ -422,17 +378,20 @@ def stardist_segmentation(
             slice(s_x, e_x),
         )
         logger.info(f"Now processing ROI {i_ROI+1}/{num_ROIs}")
-        # Prepare input for stardist
+
+        # Prepare channel and label input for seeded_segmentation
+        label_np = load_region(label_zyx, region, compute=True, return_as_3D=True)
         img_np = load_region(data_zyx, region, compute=True, return_as_3D=True)
+
         # Prepare keyword arguments for segment_ROI function
         kwargs_segment_ROI = dict(
             num_labels_tot=num_labels_tot,
-            model=model,
-            do_3D=do_3D,
+            channel=img_np,
+            normalize=channel.normalize,
             label_dtype=label_dtype,
-            normalization=channel.normalization,
+            pxl_sizes_zyx=actual_res_pxl_sizes_zyx,
             relabeling=relabeling,
-            advanced_stardist_model_params=advanced_stardist_model_params,
+            advanced_model_params=advanced_model_params,
         )
 
         # Prepare keyword arguments for preprocessing function
@@ -449,7 +408,7 @@ def stardist_segmentation(
         # Call segment_ROI through the masked-loading wrapper, which includes
         # pre/post-processing functions if needed
         new_label_img = masked_loading_wrapper(
-            image_array=img_np,
+            image_array=label_np,
             function=segment_ROI,
             kwargs=kwargs_segment_ROI,
             use_masks=use_masks,
@@ -473,7 +432,7 @@ def stardist_segmentation(
         )
 
     logger.info(
-        f"End stardist_segmentation task for {zarr_url}, " "now building pyramids."
+        f"End seeded_segmentation task for {zarr_url}, " "now building pyramids."
     )
 
     # Starting from on-disk highest-resolution data, build and write to disk a
@@ -513,9 +472,9 @@ def stardist_segmentation(
 
 
 if __name__ == "__main__":
-    from fractal_tasks_core.tasks._utils import run_fractal_task
+    from fractal_task_tools.task_wrapper import run_fractal_task
 
     run_fractal_task(
-        task_function=stardist_segmentation,
+        task_function=seeded_segmentation,
         logger_name=logger.name,
     )

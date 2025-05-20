@@ -17,7 +17,7 @@
 | Compute Channel Registration (elastix) | Compute similarity registration of all channels in an acquisition to a reference channel.|✓|
 | Apply Channel Registration (elastix) | Apply similarity registration to multi-channel acquisition.|✓|
 | Stardist Segmentation | Segment images using Stardist. |✓|
-| Seeded Watershed Segmentation | Performs segmentation (e.g., of cells) using a label image as seeds and an intensity image (e.g., membrane stain) for boundary detection. |TODO|
+| Seeded Watershed Segmentation | Performs segmentation (e.g., of cells) using a label image as seeds and an intensity image (e.g., membrane stain) for boundary detection. |✓|
 | Upsample Label Image | Upsamples label images to the highest image resolution. Useful if segmentation was peformed on e.g. level 1 to avoid resolution mismatch in downstream tasks. |✓|
 
 

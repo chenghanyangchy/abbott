@@ -61,7 +61,40 @@ def to_itk(
         if scale is None:
             scale = tuple(img.GetSpacing())[::1]
         trans_img.SetSpacing(scale[::-1])
+    elif isinstance(img, itk.LabelMap.x3):
+        filt = itk.LabelMapToLabelImageFilter.LM3IUS3.New(
+            img
+        )  # BUG does not automatically use US3 if label map has more elements than 255
+        # --> hardcoded .LM3IUS3.
+        filt.Update()
+        trans_img = filt.GetOutput()
+    else:
+        # Add error handling for unsupported types
+        raise TypeError(f"Cannot convert object of type {type(img)} to itk.Image")
+
     return trans_img
+
+
+def to_labelmap(
+    img,  #: np.ndarray | ITKImage | h5py.Dataset,
+    scale: tuple[float, ...] | None = None,
+):
+    """Convert something image-like to `itk.LabelMap`.
+
+    Args:
+        img: Image to convert.
+        scale: Image scale in numpy (!) conventions ([z], y, x).
+
+    Raises:
+        ValueError: No `scale` provided with np.ndarray.
+        TypeError: Unknown image type.
+
+    Returns:
+        ITK label image.
+    """
+    filt = itk.LabelImageToLabelMapFilter.New(to_itk(img, scale=scale))
+    filt.Update()
+    return filt.GetOutput()
 
 
 def to_numpy(img) -> np.ndarray:
@@ -76,6 +109,10 @@ def to_numpy(img) -> np.ndarray:
     Returns:
         Numpy array.
     """
+    if isinstance(img, itk.LabelMap.x3) or isinstance(
+        img, itk.ITKLabelMapBasePython.itkLabelMap3
+    ):
+        img = to_itk(img)
     if isinstance(img, (itk.Image, itk.VectorImage)):
         trans_img = itk.GetArrayFromImage(img)
     elif isinstance(img, np.ndarray):
