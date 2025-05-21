@@ -1119,11 +1119,11 @@
       "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
-      "name": "Seeded Segmentation",
+      "name": "Seeded Watershed Segmentation",
       "category": "Segmentation",
       "tags": [
         "scikit-image",
-        "itk,2D",
+        "itk,",
         "3D"
       ],
       "docs_info": "### Purpose\n- **Seeded Segmentation to retrieve e.g. Cell Segmentation**.\n- Accepts label_name of label image to use as seeds (e.g. nuclei) and single channel image input that contains boundary (e.g. membrane) marker.\n- Can process **arbitrary regions of interest (ROIs)**, including whole images, fields of view (FOVs), or masked outputs from prior segmentations, based on corresponding ROI tables.\n- If masked segmentation should be performed, use ROI table of type masking_roi_table.\n\n### Limitations\n- This task assumes that label_name and channel image are in same zarr_url.\n",

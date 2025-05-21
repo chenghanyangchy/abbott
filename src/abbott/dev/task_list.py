@@ -96,13 +96,13 @@ TASK_LIST = [
         docs_info="file:docs_info/stardist_segmentation.md",
     ),
     ParallelTask(
-        name="Seeded Segmentation",
+        name="Seeded Watershed Segmentation",
         executable="fractal_tasks/seeded_segmentation.py",
         meta={"cpus_per_task": 4, "mem": 16000},
         category="Segmentation",
         tags=[
             "scikit-image",
-            "itk," "2D",
+            "itk,",
             "3D",
         ],
         docs_info="file:docs_info/seeded_segmentation.md",
