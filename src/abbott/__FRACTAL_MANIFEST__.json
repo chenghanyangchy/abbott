@@ -153,7 +153,7 @@
           "roi_table": {
             "title": "Roi Table",
             "type": "string",
-            "description": "Name of the ROI table for which registrations have been calculated using the Compute Registration Elastix task. Examples: `FOV_ROI_table` => loop over the field of views, `well_ROI_table` => process the whole well as one image."
+            "description": "Name of the ROI table which has been used during computation of registration. Examples: `FOV_ROI_table` => loop over the field of views, `well_ROI_table` => process the whole well as one image."
           },
           "reference_acquisition": {
             "default": 0,
@@ -161,17 +161,17 @@
             "type": "integer",
             "description": "Which acquisition to register against. Uses the OME-NGFF HCS well metadata acquisition keys to find the reference acquisition."
           },
+          "output_image_suffix": {
+            "default": "registered",
+            "title": "Output Image Suffix",
+            "type": "string",
+            "description": "Name of the output image suffix. E.g. \"registered\"."
+          },
           "overwrite_input": {
             "default": true,
             "title": "Overwrite Input",
             "type": "boolean",
             "description": "Whether the old image data should be replaced with the newly registered image data. Currently only implemented for `overwrite_input=True`."
-          },
-          "overwrite_output": {
-            "default": true,
-            "title": "Overwrite Output",
-            "type": "boolean",
-            "description": "Whether pre-existing registered images (which will be named \"zarr_url\" + _registered) should be overwritten by the task."
           }
         },
         "required": [
@@ -593,7 +593,7 @@
                   }
                 ],
                 "title": "Window",
-                "description": "Optional `Window` object to set default display settings for napari."
+                "description": "Optional `Window` object to set default display settings. If unset, it will be set to the full bit range of the image (e.g. 0-65535 for 16 bit images)."
               },
               "color": {
                 "title": "Color",
