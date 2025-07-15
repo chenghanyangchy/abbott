@@ -24,6 +24,7 @@ import numpy as np
 import zarr
 from fractal_tasks_core.labels import prepare_label_group
 from fractal_tasks_core.ngff import load_NgffImageMeta
+from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
 from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     array_to_bounding_box_table,
@@ -35,7 +36,10 @@ from fractal_tasks_core.roi import (
     load_region,
 )
 from fractal_tasks_core.tables import write_table
-from fractal_tasks_core.utils import rescale_datasets
+from fractal_tasks_core.utils import (
+    _split_well_path_image_path,
+    rescale_datasets,
+)
 from pydantic import Field, validate_call
 from skimage.segmentation import watershed
 
@@ -161,6 +165,7 @@ def seeded_segmentation(
     zarr_url: str,
     # Core parameters
     level: int,
+    reference_acquisition: Optional[int] = None,
     label_name: str,
     channel: Optional[SeededSegmentationChannelInputModel] = None,
     input_ROI_table: str = "FOV_ROI_table",
@@ -181,6 +186,8 @@ def seeded_segmentation(
             (standard argument for Fractal tasks, managed by Fractal server).
         level: Pyramid level of the image to be segmented. Choose `0` to
             process at full resolution.
+        reference_acquisition: If provided, the task will only run seeded_segmentation
+            for the reference_zarr_url.
         label_name: Name of the label image to be used as input seeds. Expected to
             be in same zarr_url as channel image.
         channel: Channel for segmentation; requires either
@@ -208,6 +215,20 @@ def seeded_segmentation(
         overwrite: If `True`, overwrite the task output.
     """
     logger.info(f"Processing {zarr_url=}")
+
+    # Check if only reference_zarr_url should be processed
+    if reference_acquisition is not None:
+        well_url, _ = _split_well_path_image_path(zarr_url)
+        acq_dict = load_NgffWellMeta(well_url).get_acquisition_paths()
+        if reference_acquisition not in acq_dict:
+            raise ValueError(
+                f"{reference_acquisition=} was not one of the available "
+                f"acquisitions in {acq_dict=} for well {well_url}"
+            )
+        ref_path = acq_dict[reference_acquisition][0]
+        reference_zarr_url = f"{well_url}/{ref_path}"
+        if zarr_url != reference_zarr_url:
+            return
 
     # Read attributes from NGFF metadata
     ngff_image_meta = load_NgffImageMeta(zarr_url)

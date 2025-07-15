@@ -13,9 +13,6 @@ from fractal_tasks_core.ngff import load_NgffImageMeta
 from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.utils import rescale_datasets
 
-from abbott.fractal_tasks.init_select_acquisition_round import (
-    init_select_acquisition_round,
-)
 from abbott.fractal_tasks.upsample_label_image import upsample_label_image
 
 __OME_NGFF_VERSION__ = fractal_tasks_core.__OME_NGFF_VERSION__
@@ -38,16 +35,11 @@ def test_upsample_label_image_same_resolutions(test_data_dir_3d):
     zarr_urls = [f"{test_data_dir_3d}/B/03/0", f"{test_data_dir_3d}/B/03/1"]
     reference_acquisition = 2
 
-    parallelization_list = init_select_acquisition_round(
-        zarr_urls=zarr_urls,
-        zarr_dir="",
-        reference_acquisition=reference_acquisition,
-    )["parallelization_list"]
-
-    for param in parallelization_list:
+    for zarr_url in zarr_urls:
+        print(zarr_url)
         upsample_label_image(
-            zarr_url=param["zarr_url"],
-            init_args=param["init_args"],
+            zarr_url=zarr_url,
+            reference_acquisition=reference_acquisition,
             label_name="emb_linked",
             output_label_name="emb_linked_upsampled",
             input_ROI_table="emb_ROI_table_2_linked",
@@ -59,6 +51,7 @@ def test_upsample_label_image_same_resolutions(test_data_dir_3d):
 
 def test_upsample_label_image_lower_resolution(test_data_dir_3d):
     zarr_urls = [f"{test_data_dir_3d}/B/03/0", f"{test_data_dir_3d}/B/03/1"]
+    reference_acquisition = 2
     label_name = "emb_linked"
 
     zarr_url = zarr_urls[0]
@@ -141,16 +134,10 @@ def test_upsample_label_image_lower_resolution(test_data_dir_3d):
         aggregation_function=np.max,
     )
 
-    parallelization_list = init_select_acquisition_round(
-        zarr_urls=zarr_urls,
-        zarr_dir="",
-        reference_acquisition=2,
-    )["parallelization_list"]
-
-    for param in parallelization_list:
+    for zarr_url in zarr_urls:
         upsample_label_image(
-            zarr_url=param["zarr_url"],
-            init_args=param["init_args"],
+            zarr_url=zarr_url,
+            reference_acquisition=reference_acquisition,
             label_name=label_name,
             output_label_name="emb_linked_upsampled",
             input_ROI_table="FOV_ROI_table",

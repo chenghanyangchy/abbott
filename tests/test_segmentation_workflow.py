@@ -2,6 +2,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import zarr
 from devtools import debug
 from fractal_tasks_core.zarr_utils import OverwriteNotAllowedError
 
@@ -89,6 +90,7 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
     input_ROI_table = "FOV_ROI_table"
     stardist_model = StardistModels.DEMO_3D
     output_label_name = "nuclei_stardist"
+    reference_acquisition = 2
 
     zarr_url = f"{test_data_dir_3d}/B/03/0"
 
@@ -109,6 +111,7 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
     stardist_segmentation(
         zarr_url=zarr_url,
         level=4,
+        reference_acquisition=reference_acquisition,
         channel=channel,
         input_ROI_table=input_ROI_table,
         model_type=stardist_model,
@@ -151,12 +154,30 @@ def test_stardist_segmentation_workflow_3d(test_data_dir_3d):
         overwrite=True,
     )
 
+    # Test with zarr_url that is not reference_zarr_url
+    zarr_url_not_ref = f"{test_data_dir_3d}/B/03/1"
+    stardist_segmentation(
+        zarr_url=zarr_url_not_ref,
+        reference_acquisition=reference_acquisition,
+        level=4,
+        use_masks=True,
+        channel=channel,
+        input_ROI_table=input_roi_table_masked,
+        model_type=stardist_model,
+        output_label_name=output_label_name,
+        advanced_stardist_model_params=advanced_stardist_model_params,
+        overwrite=True,
+    )
+    with pytest.raises((zarr.errors.GroupNotFoundError, KeyError)):
+        zarr.open_group(f"{zarr_url_not_ref}/labels/{output_label_name}", "r")
+
 
 def test_seeded_segmentation_workflow_3d(test_data_dir_3d):
     # Task-specific arguments
     input_ROI_table = "emb_ROI_table_2_linked"
     label_name = "nuclei"
     output_label_name = "cells"
+    reference_acquisition = 2
 
     zarr_url = f"{test_data_dir_3d}/B/03/0"
 
@@ -180,6 +201,7 @@ def test_seeded_segmentation_workflow_3d(test_data_dir_3d):
 
     seeded_segmentation(
         zarr_url=zarr_url,
+        reference_acquisition=reference_acquisition,
         level=4,
         label_name=label_name,
         channel=channel,
@@ -260,3 +282,22 @@ def test_seeded_segmentation_workflow_3d(test_data_dir_3d):
         advanced_model_params=advanced_model_params,
         overwrite=True,
     )
+
+    # Test with zarr_url that is not reference_zarr_url
+    zarr_url_not_ref = f"{test_data_dir_3d}/B/03/1"
+    seeded_segmentation(
+        zarr_url=zarr_url_not_ref,
+        reference_acquisition=reference_acquisition,
+        level=4,
+        label_name=label_name,
+        channel=channel,
+        input_ROI_table=input_ROI_table,
+        output_label_name=output_label_name,
+        relabeling=True,
+        use_masks=True,
+        advanced_model_params=advanced_model_params,
+        overwrite=True,
+    )
+
+    with pytest.raises((zarr.errors.GroupNotFoundError, KeyError)):
+        zarr.open_group(f"{zarr_url_not_ref}/labels/{output_label_name}", "r")

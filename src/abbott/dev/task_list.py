@@ -107,12 +107,12 @@ TASK_LIST = [
         ],
         docs_info="file:docs_info/seeded_segmentation.md",
     ),
-    CompoundTask(
+    ParallelTask(
         name="Upsample Label Image",
-        executable_init="fractal_tasks/init_select_acquisition_round.py",
         executable="fractal_tasks/upsample_label_image.py",
         meta={"cpus_per_task": 4, "mem": 16000},
         category="Image Processing",
+        tags=["3D"],
         docs_info="file:docs_info/upsample_label_image.md",
     ),
 ]
