@@ -2,7 +2,6 @@
 
 from fractal_task_tools.task_models import (
     CompoundTask,
-    ConverterCompoundTask,
     ParallelTask,
 )
 
@@ -70,7 +69,7 @@ TASK_LIST = [
         tags=["Multiplexing"],
         docs_info="file:docs_info/apply_channel_registration.md",
     ),
-    ConverterCompoundTask(
+    CompoundTask(
         name="Convert Cellvoyager Multiplexing to existing OME-Zarr",
         executable_init="fractal_tasks/cellvoyager_to_ome_zarr_init_extend_multiplex.py",
         executable="fractal_tasks/cellvoyager_compute_omezarr.py",

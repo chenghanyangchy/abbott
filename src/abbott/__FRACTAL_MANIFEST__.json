@@ -9,6 +9,7 @@
         "Multiplexing"
       ],
       "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Processes images grouped by well, under the assumption that each well contains one image per acquisition.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.",
+      "type": "compound",
       "executable_non_parallel": "fractal_tasks/init_registration_hcs.py",
       "executable_parallel": "fractal_tasks/compute_registration_elastix.py",
       "meta_parallel": {
@@ -120,8 +121,7 @@
         ],
         "type": "object",
         "title": "ComputeRegistrationElastix"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Apply Registration (elastix)",
@@ -137,6 +137,7 @@
         "Multiplexing"
       ],
       "docs_info": "### Purpose\n- **Applies pre-calculated registration** from `Compute Registration elastix` task to images in an **HCS** OME-Zarr dataset, aligning all acquisitions to a specified reference acquisition.\n- Replaces the non-aligned image with the newly aligned image in the dataset if `overwrite input` is selected.\n- Typically used as the second task in a workflow, following `Calculate Registration (elastix)`.\n\n### Limitations\n- If `overwrite input` is selected, the non-aligned image is permanently deleted, which may impact workflows requiring access to the original images.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/apply_registration_elastix.py",
       "meta_parallel": {
         "cpus_per_task": 1,
@@ -180,8 +181,7 @@
         ],
         "type": "object",
         "title": "ApplyRegistrationElastix"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Compute Registration per ROI (elastix)",
@@ -191,6 +191,7 @@
         "Multiplexing"
       ],
       "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Can handle cases where there are more than one embryo / organoid in a FOV.\n- Processes images grouped by well, under the assumption that each ROI e.g. embryo / organoid is masked by a linked label (e.g. calculated by\n    `scMultiplex Calculate Object Linking`)  and corresponding masking_roi_table.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration ROI (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.\n",
+      "type": "compound",
       "executable_non_parallel": "fractal_tasks/init_registration_hcs.py",
       "executable_parallel": "fractal_tasks/compute_registration_elastix_per_ROI.py",
       "meta_parallel": {
@@ -308,8 +309,7 @@
         ],
         "type": "object",
         "title": "ComputeRegistrationElastixPerRoi"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Apply Registration per ROI (elastix)",
@@ -325,6 +325,7 @@
         "Multiplexing"
       ],
       "docs_info": "### Purpose\n- **Applies pre-calculated registration** from `Compute Registration ROI (elastix)` task to images in an **HCS** OME-Zarr dataset, aligning all acquisitions to a specified reference acquisition.\n- Replaces the non-aligned image with the newly aligned image in the dataset if `overwrite input` is selected.\n- Typically used as the second task in a workflow, following `Compute Registration ROI (elastix)`.\n\n### Limitations\n- If `overwrite input` is selected, the non-aligned image is permanently deleted, which may impact workflows requiring access to the original images.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/apply_registration_elastix_per_ROI.py",
       "meta_parallel": {
         "cpus_per_task": 1,
@@ -380,8 +381,7 @@
         ],
         "type": "object",
         "title": "ApplyRegistrationElastixPerRoi"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Compute Channel Registration (elastix)",
@@ -394,6 +394,7 @@
         "Multiplexing"
       ],
       "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the elastix library.\n- Needs Elastix profiles to configure the registration.\n- Processes images grouped by well, under the assumption that each well contains one image per acquisition.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Channel Registration (elastix)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Assumes each well contains a single image per acquisition.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/compute_channel_registration_elastix.py",
       "meta_parallel": {
         "cpus_per_task": 1,
@@ -452,8 +453,7 @@
         ],
         "type": "object",
         "title": "ComputeChannelRegistrationElastix"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Apply Channel Registration (elastix)",
@@ -469,6 +469,7 @@
         "Multiplexing"
       ],
       "docs_info": "### Purpose\n- **Applies pre-calculated registration** from `Calculate Channel Registration (elastix)` task to images in an **HCS** OME-Zarr dataset, aligning all channels of an acquisition to a specified reference wavelength.\n- This task is useful if there are wavelength- and sample-dependent chromatic shifts.\n- Replaces the non-aligned image with the newly aligned image in the dataset if `overwrite input` is selected.\n- Typically used as the second task in a workflow, following `Calculate Channel Registration (elastix)`.\n\n### Limitations\n- If `overwrite input` is selected, the non-aligned image is permanently deleted, which may impact workflows requiring access to the original images.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/apply_channel_registration_elastix.py",
       "meta_parallel": {
         "cpus_per_task": 1,
@@ -518,8 +519,7 @@
         ],
         "type": "object",
         "title": "ApplyChannelRegistrationElastix"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Convert Cellvoyager Multiplexing to existing OME-Zarr",
@@ -532,6 +532,7 @@
         "3D"
       ],
       "docs_info": "### Purpose\n- Converts **multiplexed 2D and 3D images from CellVoyager CV7000/8000** systems into OME-Zarr format, storing each acquisition as a separate OME-Zarr image, **extending an existing** OME-Zarr plate.\n- Creates **OME-Zarr HCS plates**, combining all fields of view for each acquisition in a well into a single image.\n- Saves Fractal **region-of-interest (ROI) tables** for both individual fields of view and the entire well.\n- Handles overlapping fields of view by adjusting their positions to be non-overlapping, while preserving the original position data as additional columns in the ROI tables.\n\n### Limitations\n- This task currently does not support time-resolved data and ignores the time fields in CellVoyager metadata.\n",
+      "type": "compound",
       "executable_non_parallel": "fractal_tasks/cellvoyager_to_ome_zarr_init_extend_multiplex.py",
       "executable_parallel": "fractal_tasks/cellvoyager_compute_omezarr.py",
       "meta_non_parallel": {
@@ -549,16 +550,14 @@
             "properties": {
               "image_dir": {
                 "title": "Image Dir",
-                "type": "string",
-                "description": "Path to the folder that contains the Cellvoyager image files for that acquisition and the MeasurementData & MeasurementDetail metadata files."
+                "type": "string"
               },
               "allowed_channels": {
                 "items": {
                   "$ref": "#/$defs/OmeroChannel"
                 },
                 "title": "Allowed Channels",
-                "type": "array",
-                "description": "A list of `OmeroChannel` objects, where each channel must include the `wavelength_id` attribute and where the `wavelength_id` values must be unique across the list."
+                "type": "array"
               }
             },
             "required": [
@@ -573,18 +572,15 @@
             "properties": {
               "wavelength_id": {
                 "title": "Wavelength Id",
-                "type": "string",
-                "description": "Unique ID for the channel wavelength, e.g. `A01_C01`."
+                "type": "string"
               },
               "index": {
                 "title": "Index",
-                "type": "integer",
-                "description": "Do not change. For internal use only."
+                "type": "integer"
               },
               "label": {
                 "title": "Label",
-                "type": "string",
-                "description": "Name of the channel."
+                "type": "string"
               },
               "window": {
                 "allOf": [
@@ -592,31 +588,26 @@
                     "$ref": "#/$defs/Window"
                   }
                 ],
-                "title": "Window",
-                "description": "Optional `Window` object to set default display settings. If unset, it will be set to the full bit range of the image (e.g. 0-65535 for 16 bit images)."
+                "title": "Window"
               },
               "color": {
                 "title": "Color",
-                "type": "string",
-                "description": "Optional hex colormap to display the channel in napari (it must be of length 6, e.g. `00FFFF`)."
+                "type": "string"
               },
               "active": {
                 "default": true,
                 "title": "Active",
-                "type": "boolean",
-                "description": "Should this channel be shown in the viewer?"
+                "type": "boolean"
               },
               "coefficient": {
                 "default": 1,
                 "title": "Coefficient",
-                "type": "integer",
-                "description": "Do not change. Omero-channel attribute."
+                "type": "integer"
               },
               "inverted": {
                 "default": false,
                 "title": "Inverted",
-                "type": "boolean",
-                "description": "Do not change. Omero-channel attribute."
+                "type": "boolean"
               }
             },
             "required": [
@@ -630,23 +621,19 @@
             "properties": {
               "min": {
                 "title": "Min",
-                "type": "integer",
-                "description": "Do not change. It will be set to `0` by default."
+                "type": "integer"
               },
               "max": {
                 "title": "Max",
-                "type": "integer",
-                "description": "Do not change. It will be set according to bit-depth of the images by default (e.g. 65535 for 16 bit images)."
+                "type": "integer"
               },
               "start": {
                 "title": "Start",
-                "type": "integer",
-                "description": "Lower-bound rescaling value for visualization."
+                "type": "integer"
               },
               "end": {
                 "title": "End",
-                "type": "integer",
-                "description": "Upper-bound rescaling value for visualization."
+                "type": "integer"
               }
             },
             "required": [
@@ -840,8 +827,7 @@
         ],
         "type": "object",
         "title": "CellvoyagerComputeOmezarr"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Stardist Segmentation",
@@ -854,6 +840,7 @@
         "3D"
       ],
       "docs_info": "### Purpose\n- **Segments images using Stardist models**.\n- Supports both **built-in Stardist models** (shipped with Stardist) and **user-trained models**.\n- Accepts single channel image input for segmentation.\n- Can process **arbitrary regions of interest (ROIs)**, including whole images, fields of view (FOVs), or masked outputs from prior segmentations, based on corresponding ROI tables.\n- Provides access to all advanced Stardist parameters.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/stardist_segmentation.py",
       "meta_parallel": {
         "cpus_per_task": 4,
@@ -1120,8 +1107,7 @@
         ],
         "type": "object",
         "title": "StardistSegmentation"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Seeded Watershed Segmentation",
@@ -1132,6 +1118,7 @@
         "3D"
       ],
       "docs_info": "### Purpose\n- **Seeded Segmentation to retrieve e.g. Cell Segmentation**.\n- Accepts label_name of label image to use as seeds (e.g. nuclei) and single channel image input that contains boundary (e.g. membrane) marker.\n- Can process **arbitrary regions of interest (ROIs)**, including whole images, fields of view (FOVs), or masked outputs from prior segmentations, based on corresponding ROI tables.\n- If masked segmentation should be performed, use ROI table of type masking_roi_table.\n\n### Limitations\n- This task assumes that label_name and channel image are in same zarr_url.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/seeded_segmentation.py",
       "meta_parallel": {
         "cpus_per_task": 4,
@@ -1313,8 +1300,7 @@
         ],
         "type": "object",
         "title": "SeededSegmentation"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     },
     {
       "name": "Upsample Label Image",
@@ -1323,6 +1309,7 @@
         "3D"
       ],
       "docs_info": "### Purpose\n- Upsamples segmented **labels** in 2D or 3D images to the highest image resolution.\n- Useful if segmentation was performed at a lower resolution (e.g. level 1).\n\n### Outputs\n- A new **upsampled label image** with resolution matching those of the OME-Zarr images.\n- Preserves the integer label values from the original segmentation.\n",
+      "type": "parallel",
       "executable_parallel": "fractal_tasks/upsample_label_image.py",
       "meta_parallel": {
         "cpus_per_task": 4,
@@ -1382,11 +1369,10 @@
         ],
         "type": "object",
         "title": "UpsampleLabelImage"
-      },
-      "docs_link": "https://github.com/pelkmanslab/abbott"
+      }
     }
   ],
   "has_args_schemas": true,
   "args_schema_version": "pydantic_v2",
-  "authors": "Ruth Hornbachner"
+  "authors": null
 }

@@ -1,0 +1,792 @@
+{
+  "name": "multiplexing_3d",
+  "task_list": [
+    {
+      "meta_non_parallel": {
+        "cpus_per_task": 1,
+        "mem": 4000
+      },
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": {
+        "overwrite": true,
+        "num_levels": 3,
+        "acquisitions": {
+          "0": {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle0",
+            "allowed_channels": [
+              {
+                "label": "DAPI_0",
+                "active": true,
+                "window": {
+                  "end": 4000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A01_C01"
+              },
+              {
+                "label": "Sox2",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A02_C02"
+              },
+              {
+                "label": "betaCatenin",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A03_C03"
+              },
+              {
+                "label": "pERM",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A04_C04"
+              }
+            ]
+          }
+        },
+        "coarsening_xy": 2,
+        "image_extension": "tif",
+        "include_glob_patterns": [
+          "*B03*",
+          "*C0[14].tif",
+          "*F001*"
+        ]
+      },
+      "args_parallel": {
+        "chunk_sizes": {
+          "c": 1,
+          "z": 10
+        }
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "fractal-tasks-core",
+        "version": "1.5.3",
+        "name": "Convert Cellvoyager Multiplexing to OME-Zarr"
+      }
+    },
+    {
+      "meta_non_parallel": {
+        "cpus_per_task": 1,
+        "mem": 4000
+      },
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": {
+        "overwrite": true,
+        "num_levels": 3,
+        "acquisitions": {
+          "1": {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle1",
+            "allowed_channels": [
+              {
+                "label": "DAPI_1",
+                "active": true,
+                "window": {
+                  "end": 4000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A01_C01"
+              },
+              {
+                "label": "HSP60",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A02_C02"
+              },
+              {
+                "label": "pMyosin",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A03_C03"
+              },
+              {
+                "label": "RhoA",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A04_C04"
+              }
+            ]
+          },
+          "2": {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle2",
+            "allowed_channels": [
+              {
+                "label": "DAPI_2",
+                "active": true,
+                "window": {
+                  "end": 4000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A01_C01"
+              },
+              {
+                "label": "VPS35",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A02_C02"
+              },
+              {
+                "label": "ZO1",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A03_C03"
+              },
+              {
+                "label": "ECadherin",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A04_C04"
+              }
+            ]
+          },
+          "3": {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle3",
+            "allowed_channels": [
+              {
+                "label": "DAPI_3",
+                "active": true,
+                "window": {
+                  "end": 4000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A01_C01"
+              },
+              {
+                "label": "H3K27ac",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A04_C04"
+              }
+            ]
+          },
+          "4": {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle4",
+            "allowed_channels": [
+              {
+                "label": "DAPI_4",
+                "active": true,
+                "window": {
+                  "end": 4000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A01_C01"
+              },
+              {
+                "label": "pH3",
+                "active": true,
+                "window": {
+                  "end": 1000,
+                  "start": 0
+                },
+                "inverted": false,
+                "coefficient": 1,
+                "wavelength_id": "A04_C04"
+              }
+            ]
+          }
+        },
+        "coarsening_xy": 2,
+        "image_extension": "tif",
+        "include_glob_patterns": [
+          "*B03*",
+          "*C0[14].tif",
+          "*F001*"
+        ]
+      },
+      "args_parallel": {
+        "chunk_sizes": {
+          "c": 1,
+          "z": 10
+        }
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Convert Cellvoyager Multiplexing to existing OME-Zarr"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "suffix": "_illum_corr",
+        "darkfield": false,
+        "correct_by": "wavelength id",
+        "input_ROI_table": "FOV_ROI_table",
+        "overwrite_input": true,
+        "subtract_baseline": false,
+        "illumination_profiles_folder": "/data/active/rhornb/multiplexing_paper/20240205-IlluminationCorrection/illumination_profiles"
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "apx-fractal-task-collection",
+        "version": "0.4.8",
+        "name": "Apply BaSiCPy Illumination Models"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "level": 1,
+        "roi_table": "FOV_ROI_table",
+        "parameter_files": [
+          "/data/active/rhornb/multiplexing_paper/registration_params/channelparams_similarity_level1.txt"
+        ],
+        "reference_wavelength": "A01_C01",
+        "lower_rescale_quantile": 0,
+        "upper_rescale_quantile": 0.99
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Compute Channel Registration (elastix)"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "level": 0,
+        "roi_table": "FOV_ROI_table",
+        "overwrite_input": true,
+        "overwrite_output": false,
+        "reference_wavelength": "A01_C01"
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Apply Channel Registration (elastix)"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": {
+        "reference_acquisition": 2
+      },
+      "args_parallel": {
+        "level": 1,
+        "roi_table": "FOV_ROI_table",
+        "wavelength_id": "A01_C01",
+        "parameter_files": [
+          "/data/active/rhornb/multiplexing_paper/registration_params/params_rigid_level1.txt",
+          "/data/active/rhornb/multiplexing_paper/registration_params/params_affine_level1.txt",
+          "/data/active/rhornb/multiplexing_paper/registration_params/params_bspline_level1.txt"
+        ],
+        "lower_rescale_quantile": 0,
+        "upper_rescale_quantile": 0.99
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Compute Registration (elastix)"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "roi_table": "FOV_ROI_table",
+        "overwrite_input": true,
+        "overwrite_output": false,
+        "reference_acquisition": 2
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Apply Registration (elastix)"
+      }
+    },
+    {
+      "meta_non_parallel": null,
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "level": 1,
+        "channel": {
+          "label": "DAPI_2"
+        },
+        "channel2": {
+          "label": "ECadherin"
+        },
+        "min_size": 1000000,
+        "overwrite": true,
+        "threshold": 0.5,
+        "use_masks": true,
+        "relabeling": true,
+        "ilastik_model": "/data/active/rhornb/multiplexing_paper/ilastik_trainingsdata/113_202502_zebrafish_multiplexed/ilastik/model/ShieldonZebrafish.ilp",
+        "input_ROI_table": "FOV_ROI_table",
+        "foreground_class": 1,
+        "output_ROI_table": "embryo_ROI_table",
+        "output_label_name": "embryo"
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "fractal-ilastik-tasks",
+        "version": null,
+        "name": "Ilastik Pixel Classification Segmentation"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 32,
+        "mem": 120000,
+        "needs_gpu": false
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "level": 1,
+        "channel": {
+          "label": "DAPI_2",
+          "normalize": {
+            "type": "custom",
+            "lower_percentile": 0,
+            "upper_percentile": 99
+          }
+        },
+        "channel2": {
+          "normalize": {
+            "type": "default"
+          }
+        },
+        "overwrite": true,
+        "use_masks": true,
+        "model_type": "nuclei",
+        "relabeling": false,
+        "diameter_level0": 25,
+        "input_ROI_table": "embryo_ROI_table",
+        "output_label_name": "nuclei",
+        "advanced_cellpose_model_params": {
+          "tile": true,
+          "interp": true,
+          "invert": false,
+          "augment": false,
+          "net_avg": true,
+          "use_gpu": false,
+          "min_size": 10,
+          "resample": true,
+          "batch_size": 2,
+          "tile_overlap": 0.1,
+          "flow_threshold": 0.4,
+          "stitch_threshold": 0,
+          "cellprob_threshold": -2
+        }
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "fractal-tasks-core",
+        "version": "1.5.3",
+        "name": "Cellpose Segmentation"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": {
+        "reference_acquisition": 2
+      },
+      "args_parallel": {
+        "level": 0,
+        "overwrite": true,
+        "label_name": "embryo",
+        "input_ROI_table": "embryo_ROI_table",
+        "output_ROI_table": "embryo_ROI_table_upsampled",
+        "output_label_name": "embryo_upsampled"
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Upsample Label Image"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": {
+        "reference_acquisition": 2
+      },
+      "args_parallel": {
+        "level": 0,
+        "overwrite": true,
+        "label_name": "nuclei",
+        "input_ROI_table": "embryo_ROI_table",
+        "output_label_name": "nuclei_upsampled"
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Upsample Label Image"
+      }
+    },
+    {
+      "meta_non_parallel": null,
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "level": 1,
+        "channel": {
+          "label": "ECadherin",
+          "normalize": {
+            "norm_type": "no_normalization"
+          }
+        },
+        "overwrite": true,
+        "use_masks": true,
+        "label_name": "nuclei_upsampled",
+        "relabeling": false,
+        "input_ROI_table": "embryo_ROI_table_upsampled",
+        "output_label_name": "cells",
+        "advanced_model_params": {
+          "compactness": 5,
+          "filter_radius": 2
+        }
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Seeded Segmentation"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 16,
+        "mem": 60000
+      },
+      "args_non_parallel": {
+        "reference_acquisition": 2
+      },
+      "args_parallel": {
+        "level": 0,
+        "overwrite": true,
+        "label_name": "cells",
+        "input_ROI_table": "embryo_ROI_table_upsampled",
+        "output_label_name": "cells_upsampled "
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott",
+        "version": "0.1.0",
+        "name": "Upsample Label Image"
+      }
+    },
+    {
+      "meta_non_parallel": {},
+      "meta_parallel": {
+        "cpus_per_task": 32,
+        "mem": 120000
+      },
+      "args_non_parallel": null,
+      "args_parallel": {
+        "level": "1",
+        "overwrite": true,
+        "use_masks": true,
+        "label_name": "nuclei_upsampled",
+        "ROI_table_name": "embryo_ROI_table_upsampled",
+        "masking_label_name": "embryo_upsampled",
+        "parent_label_names": [
+          "embryo_upsampled"
+        ],
+        "reference_acquisition": 2,
+        "measure_label_features": true,
+        "measure_distance_features": {
+          "label_name_to": "embryo_upsampled"
+        },
+        "measure_intensity_features": {
+          "measure": true,
+          "channels_to_exclude": [
+            {
+              "label": "DAPI_0"
+            },
+            {
+              "label": "DAPI_1"
+            },
+            {
+              "label": "DAPI_3"
+            },
+            {
+              "label": "DAPI_4"
+            }
+          ]
+        },
+        "measure_neighborhood_features": {
+          "measure": false
+        },
+        "measure_colocalization_features": {
+          "channel_pair": [
+            {
+              "channel0": {
+                "label": "DAPI_0"
+              },
+              "channel1": {
+                "label": "DAPI_2"
+              }
+            },
+            {
+              "channel0": {
+                "label": "DAPI_1"
+              },
+              "channel1": {
+                "label": "DAPI_2"
+              }
+            },
+            {
+              "channel0": {
+                "label": "DAPI_3"
+              },
+              "channel1": {
+                "label": "DAPI_2"
+              }
+            },
+            {
+              "channel0": {
+                "label": "DAPI_4"
+              },
+              "channel1": {
+                "label": "DAPI_2"
+              }
+            }
+          ]
+        }
+      },
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott-features",
+        "version": "0.0.9",
+        "name": "Measure Features"
+      }
+    },
+    {
+      "meta_non_parallel": {
+        "cpus_per_task": 32,
+        "mem": 120000
+      },
+      "meta_parallel": {},
+      "args_non_parallel": {
+        "loss": "huber",
+        "overwrite": true,
+        "label_name": "nuclei_upsampled",
+        "roundness_cutoff": 0.8,
+        "embryo_label_name": "embryo_upsampled",
+        "feature_table_name": "nuclei_upsampled",
+        "alignment_score_cutoff": 0.8,
+        "spherical_radius_cutoff": [
+          3,
+          8
+        ]
+      },
+      "args_parallel": null,
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott-features",
+        "version": "0.0.9",
+        "name": "Get Z Decay Models"
+      }
+    },
+    {
+      "meta_non_parallel": {
+        "cpus_per_task": 32,
+        "mem": 120000
+      },
+      "meta_parallel": {},
+      "args_non_parallel": {
+        "overwrite": true,
+        "label_name": "nuclei_upsampled",
+        "mlf_filename": "MeasurementData.mlf",
+        "mrf_filename": "MeasurementDetail.mrf",
+        "acquisition_params": [
+          {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle0/",
+            "acquisition": 0
+          },
+          {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle1/",
+            "acquisition": 1
+          },
+          {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle2/",
+            "acquisition": 2
+          },
+          {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle3/",
+            "acquisition": 3
+          },
+          {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle4/",
+            "acquisition": 4
+          },
+          {
+            "image_dir": "/data/active/rhornb/multiplexing_paper/zebrafish/cycle6/",
+            "acquisition": 6
+          }
+        ],
+        "feature_table_name": "nuclei_upsampled",
+        "save_timepoints_table": true,
+        "time_decay_table_name": "time_decay_models",
+        "alignment_score_cutoff": 0.8,
+        "spherical_radius_cutoff": [
+          4,
+          8
+        ]
+      },
+      "args_parallel": null,
+      "type_filters": {},
+      "task": {
+        "pkg_name": "abbott-features",
+        "version": "0.0.9",
+        "name": "Get Cellvoyager Time Decay"
+      }
+    },
+    {
+      "meta_non_parallel": {
+        "cpus_per_task": 1,
+        "mem": 4000
+      },
+      "meta_parallel": null,
+      "args_non_parallel": {
+        "image_key": "raw",
+        "custom_axis": {
+          "axis": [
+            {
+              "scale": 1,
+              "axis_name": "z"
+            },
+            {
+              "scale": 1,
+              "axis_name": "y"
+            },
+            {
+              "scale": 1,
+              "axis_name": "x"
+            }
+          ],
+          "channel_names": [
+            "Boundary"
+          ],
+          "spatial_units": "micrometer"
+        },
+        "image_layout": "ZYX",
+        "ome_zarr_parameters": {
+          "scaling_factor_Z": 1,
+          "number_multiscale": 4,
+          "scaling_factor_XY": 2,
+          "create_all_ome_axis": true
+        }
+      },
+      "args_parallel": null,
+      "type_filters": {},
+      "task": {
+        "pkg_name": "lorcerr:PlantSeg Tasks:h5_converter_task",
+        "version": "0.1.1",
+        "name": "H5 Converter Task"
+      }
+    }
+  ]
+}
