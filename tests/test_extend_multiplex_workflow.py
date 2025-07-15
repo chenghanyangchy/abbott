@@ -56,7 +56,6 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
     zarr_dir = str(tmp_path / "tmp_out/")
 
     parallelization_list = cellvoyager_to_ome_zarr_init_multiplex(
-        zarr_urls=[],
         zarr_dir=zarr_dir,
         acquisitions=acquisition_init,
         num_levels=num_levels,
@@ -124,7 +123,6 @@ def test_extend_multiplexing_yokogawa_to_existing_ome_zarr(
     zarr_dir_comb = str(tmp_path / "tmp_comb/")
 
     parallelization_list = cellvoyager_to_ome_zarr_init_multiplex(
-        zarr_urls=[],
         zarr_dir=zarr_dir_comb,
         acquisitions=acquisitions,
         num_levels=num_levels,
