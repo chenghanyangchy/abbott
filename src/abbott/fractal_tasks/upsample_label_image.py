@@ -11,6 +11,7 @@ import numpy as np
 import zarr
 from fractal_tasks_core.labels import prepare_label_group
 from fractal_tasks_core.ngff import load_NgffImageMeta
+from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
 from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     array_to_bounding_box_table,
@@ -21,8 +22,10 @@ from fractal_tasks_core.roi import (
     load_region,
 )
 from fractal_tasks_core.tables import write_table
-from fractal_tasks_core.tasks.io_models import InitArgsRegistrationConsensus
-from fractal_tasks_core.utils import rescale_datasets
+from fractal_tasks_core.utils import (
+    _split_well_path_image_path,
+    rescale_datasets,
+)
 from pydantic import validate_call
 from scipy.ndimage import zoom
 
@@ -35,8 +38,8 @@ logger = logging.getLogger(__name__)
 def upsample_label_image(
     # Fractal parameters
     zarr_url: str,
-    init_args: InitArgsRegistrationConsensus,
     # Core parameters
+    reference_acquisition: int,
     label_name: str,
     input_ROI_table: str,
     output_label_name: Optional[str] = None,
@@ -56,10 +59,9 @@ def upsample_label_image(
     Args:
         zarr_url: Path or url to the individual OME-Zarr image to be processed.
             (standard argument for Fractal tasks, managed by Fractal server).
-        init_args: Intialization arguments provided by
-            `init_group_by_well_for_multiplexing`. They contain the
-            reference_zarr_url that contains the label image to upsample.
-            (standard argument for Fractal tasks, managed by Fractal server).
+        reference_acquisition: Which acquisition contains the label image to
+            upsample. Needs to match the acquisition metadata in the OME-Zarr
+            image.
         label_name: Name of the label image to upsample.
         output_label_name: Optionally new label name for the upsampled label image.
         input_ROI_table: Name of the ROI table over which the task loops to
@@ -80,6 +82,19 @@ def upsample_label_image(
 
     if level != 0:
         raise NotImplementedError("Only level 0 is supported at the moment.")
+
+    # Check if zarr_url is reference_zarr_url
+    well_url, _ = _split_well_path_image_path(zarr_url)
+    acq_dict = load_NgffWellMeta(well_url).get_acquisition_paths()
+    if reference_acquisition not in acq_dict:
+        raise ValueError(
+            f"{reference_acquisition=} was not one of the available "
+            f"acquisitions in {acq_dict=} for well {well_url}"
+        )
+    ref_path = acq_dict[reference_acquisition][0]
+    reference_zarr_url = f"{well_url}/{ref_path}"
+    if zarr_url != reference_zarr_url:
+        return
 
     # Check if label actually exists
     label_zarr_url = Path(f"{zarr_url}/labels/{label_name}")
@@ -301,7 +316,7 @@ def upsample(label_image_low_res, low_res_pixel_size, full_res_pixel_size):
 
 
 if __name__ == "__main__":
-    from fractal_tasks_core.tasks._utils import run_fractal_task
+    from fractal_task_tools.task_wrapper import run_fractal_task
 
     run_fractal_task(
         task_function=upsample_label_image,

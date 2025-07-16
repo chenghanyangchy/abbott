@@ -2,10 +2,8 @@ import json
 from pathlib import Path
 
 import pytest
-from fractal_tasks_core.dev.lib_args_schemas import (
-    create_schema_for_single_task,
-)
-from fractal_tasks_core.dev.lib_signature_constraints import (
+from fractal_task_tools._args_schemas import create_schema_for_single_task
+from fractal_task_tools._signature_constraints import (
     _extract_function,
     _validate_function_signature,
 )
@@ -29,8 +27,8 @@ def test_task_functions_have_valid_signatures():
                 continue
             function_name = Path(executable).with_suffix("").name
             task_function = _extract_function(
-                    executable, function_name, package_name="abbott"
-                    )
+                executable, function_name, package_name="abbott"
+            )
             _validate_function_signature(task_function)
 
 
@@ -45,9 +43,7 @@ def test_args_schemas_are_up_to_date():
                 continue
             print(f"Now handling {executable}")
             old_schema = task[f"args_schema_{kind}"]
-            new_schema = create_schema_for_single_task(
-                    executable, package="abbott"
-                    )
+            new_schema = create_schema_for_single_task(executable, package="abbott")
             # The following step is required because some arguments may have a
             # default which has a non-JSON type (e.g. a tuple), which we need
             # to convert to JSON type (i.e. an array) before comparison.

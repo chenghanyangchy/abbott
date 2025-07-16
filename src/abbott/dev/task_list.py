@@ -2,7 +2,6 @@
 
 from fractal_task_tools.task_models import (
     CompoundTask,
-    ConverterCompoundTask,
     ParallelTask,
 )
 
@@ -70,7 +69,7 @@ TASK_LIST = [
         tags=["Multiplexing"],
         docs_info="file:docs_info/apply_channel_registration.md",
     ),
-    ConverterCompoundTask(
+    CompoundTask(
         name="Convert Cellvoyager Multiplexing to existing OME-Zarr",
         executable_init="fractal_tasks/cellvoyager_to_ome_zarr_init_extend_multiplex.py",
         executable="fractal_tasks/cellvoyager_compute_omezarr.py",
@@ -96,23 +95,23 @@ TASK_LIST = [
         docs_info="file:docs_info/stardist_segmentation.md",
     ),
     ParallelTask(
-        name="Seeded Segmentation",
+        name="Seeded Watershed Segmentation",
         executable="fractal_tasks/seeded_segmentation.py",
         meta={"cpus_per_task": 4, "mem": 16000},
         category="Segmentation",
         tags=[
             "scikit-image",
-            "itk," "2D",
+            "itk,",
             "3D",
         ],
         docs_info="file:docs_info/seeded_segmentation.md",
     ),
-    CompoundTask(
+    ParallelTask(
         name="Upsample Label Image",
-        executable_init="fractal_tasks/init_select_acquisition_round.py",
         executable="fractal_tasks/upsample_label_image.py",
         meta={"cpus_per_task": 4, "mem": 16000},
         category="Image Processing",
+        tags=["3D"],
         docs_info="file:docs_info/upsample_label_image.md",
     ),
 ]

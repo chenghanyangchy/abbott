@@ -25,6 +25,7 @@ import numpy as np
 import zarr
 from fractal_tasks_core.labels import prepare_label_group
 from fractal_tasks_core.ngff import load_NgffImageMeta
+from fractal_tasks_core.ngff.zarr_utils import load_NgffWellMeta
 from fractal_tasks_core.pyramids import build_pyramid
 from fractal_tasks_core.roi import (
     array_to_bounding_box_table,
@@ -36,7 +37,10 @@ from fractal_tasks_core.roi import (
     load_region,
 )
 from fractal_tasks_core.tables import write_table
-from fractal_tasks_core.utils import rescale_datasets
+from fractal_tasks_core.utils import (
+    _split_well_path_image_path,
+    rescale_datasets,
+)
 from pydantic import Field, validate_call
 from stardist.models import StarDist2D, StarDist3D
 
@@ -161,6 +165,7 @@ def stardist_segmentation(
     zarr_url: str,
     # Core parameters
     level: int,
+    reference_acquisition: Optional[int] = None,
     channel: StardistChannelInputModel,
     input_ROI_table: str = "FOV_ROI_table",
     output_ROI_table: Optional[str] = None,
@@ -182,6 +187,8 @@ def stardist_segmentation(
             (standard argument for Fractal tasks, managed by Fractal server).
         level: Pyramid level of the image to be segmented. Choose `0` to
             process at full resolution.
+        reference_acquisition: If provided, the task will only run stardist_segmentation
+            for the reference_zarr_url.
         channel: Primary channel for segmentation; requires either
             `wavelength_id` (e.g. `A01_C01`) or `label` (e.g. `DAPI`), but not
             both. Also contains normalization options. By default, data is
@@ -217,6 +224,20 @@ def stardist_segmentation(
         overwrite: If `True`, overwrite the task output.
     """
     logger.info(f"Processing {zarr_url=}")
+
+    # Check if only reference_zarr_url should be processed
+    if reference_acquisition is not None:
+        well_url, _ = _split_well_path_image_path(zarr_url)
+        acq_dict = load_NgffWellMeta(well_url).get_acquisition_paths()
+        if reference_acquisition not in acq_dict:
+            raise ValueError(
+                f"{reference_acquisition=} was not one of the available "
+                f"acquisitions in {acq_dict=} for well {well_url}"
+            )
+        ref_path = acq_dict[reference_acquisition][0]
+        reference_zarr_url = f"{well_url}/{ref_path}"
+        if zarr_url != reference_zarr_url:
+            return
 
     # Preliminary checks on Stardist model
     if pretrained_model:
@@ -513,7 +534,7 @@ def stardist_segmentation(
 
 
 if __name__ == "__main__":
-    from fractal_tasks_core.tasks._utils import run_fractal_task
+    from fractal_task_tools.task_wrapper import run_fractal_task
 
     run_fractal_task(
         task_function=stardist_segmentation,
