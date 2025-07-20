@@ -1569,6 +1569,12 @@
             "title": "Mlf Path",
             "type": "string",
             "description": "Same as for mrf, but for the mlf file. Typical name is MeasurementData.mlf."
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean",
+            "description": "If `True`, overwrite the task output. Default is `False`."
           }
         },
         "required": [
@@ -1859,12 +1865,6 @@
             "title": "Masking Label",
             "type": "string",
             "description": "Optional label for masking ROI e.g. `embryo`."
-          },
-          "overwrite": {
-            "default": false,
-            "title": "Overwrite",
-            "type": "boolean",
-            "description": "Whether to overwrite existing converted OME-Zarr files."
           }
         },
         "required": [

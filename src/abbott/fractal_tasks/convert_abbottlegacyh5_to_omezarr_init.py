@@ -24,7 +24,7 @@ from fractal_tasks_core.cellvoyager.metadata import (
 )
 from fractal_tasks_core.cellvoyager.wells import generate_row_col_split
 from fractal_tasks_core.channels import check_unique_wavelength_ids
-from fractal_tasks_core.roi import remove_FOV_overlaps
+from ngio import ImageInWellPath, create_empty_plate
 from pydantic import validate_call
 
 from abbott.fractal_tasks.converter.io_models import (
@@ -56,6 +56,7 @@ def convert_abbottlegacyh5_to_omezarr_init(
     plate_name: str = "AssayPlate_Greiner_CELLSTAR655090",
     mrf_path: str,
     mlf_path: str,
+    overwrite: bool = False,
 ) -> dict[str, Any]:
     """Create OME-NGFF structure and metadata to host a multiplexing dataset.
 
@@ -95,7 +96,7 @@ def convert_abbottlegacyh5_to_omezarr_init(
             MeasurementDetail.mrf located in the raw image folder containing tif files.
         mlf_path: Same as for mrf, but for the mlf file. Typical name is
             MeasurementData.mlf.
-        overwrite: If `True`, overwrite the task output.
+        overwrite: If `True`, overwrite the task output. Default is `False`.
 
     Returns:
         A metadata dictionary containing important metadata about the OME-Zarr
@@ -114,14 +115,19 @@ def convert_abbottlegacyh5_to_omezarr_init(
     if not os.path.isfile(mlf_path):
         raise ValueError(f"{mlf_path} does not exist.")
 
-    # Obtain FOV-metadata dataframe
-    site_metadata, _ = parse_yokogawa_metadata(
-        mrf_path,
-        mlf_path,
-        include_patterns=include_glob_patterns,
-        exclude_patterns=exclude_glob_patterns,
-    )
-    site_metadata = remove_FOV_overlaps(site_metadata)
+    # Preliminary check if FOV-metadata dataframe can be loaded
+    try:
+        parse_yokogawa_metadata(
+            mrf_path,
+            mlf_path,
+            include_patterns=include_glob_patterns,
+            exclude_patterns=exclude_glob_patterns,
+        )
+    except Exception as e:
+        raise ValueError(
+            f"Failed to parse Yokogawa metadata from {mrf_path} and {mlf_path}. "
+            f"Please check if the files and the glob patterns are valid."
+        ) from e
 
     # Preliminary checks on acquisitions
     # Note that in metadata the keys of dictionary arguments should be
@@ -137,9 +143,34 @@ def convert_abbottlegacyh5_to_omezarr_init(
         except ValueError as err:
             raise ValueError("Acquisition dictionary keys need to be integers") from err
 
-    zarrurl = sanitize_string(plate_name) + ".zarr"
-    full_zarrurl = str(Path(zarr_dir) / zarrurl)
-    logger.info(f"Creating {full_zarrurl=}")
+    # Check that all channel names are unique across all acquisitions
+    channel_labels_images_new = [
+        channel.new_label
+        for acq in acquisitions.values()
+        for channel in acq.allowed_image_channels
+    ]
+    assert len(channel_labels_images_new) == len(set(channel_labels_images_new)), (
+        "Channel labels must be unique across all acquisitions. "
+        f"Found duplicates: {channel_labels_images_new}"
+    )
+
+    channel_labels_labels_new = [
+        channel.new_label
+        for acq in acquisitions.values()
+        if acq.allowed_label_channels is not None
+        for channel in acq.allowed_label_channels
+    ]
+    if channel_labels_labels_new:
+        assert len(channel_labels_labels_new) == len(set(channel_labels_labels_new)), (
+            "Channel labels must be unique across all label channels. "
+            f"Found duplicates: {channel_labels_labels_new}"
+        )
+
+    acquisitions_sorted = sorted(set(acquisitions.keys()))
+
+    zarr_plate = sanitize_string(plate_name) + ".zarr"
+    full_zarr_plate = str(Path(zarr_dir) / zarr_plate)
+    logger.info(f"Creating {full_zarr_plate=}")
 
     ###
     # Identify all wells
@@ -161,12 +192,40 @@ def convert_abbottlegacyh5_to_omezarr_init(
     logger.info(f"{wells=}")
 
     well_rows_columns = generate_row_col_split(wells)
+    logger.info(f"{well_rows_columns=}")
+
+    row_list = [row for row, _ in well_rows_columns]
+    column_list = [column for _, column in well_rows_columns]
+    row_list = sorted(set(row_list))
+    column_list = sorted(set(column_list))
+
+    # Create ImageInWellPath objects for each well
+    list_of_images = []
+    for row, column in well_rows_columns:
+        for acq in acquisitions_sorted:
+            image = ImageInWellPath(
+                path=str(acq),
+                row=row,
+                column=column,
+                acquisition_id=int(acq),
+                acquisition_name=f"acquisition_{acq}",
+            )
+            list_of_images.append(image)
+    logger.info(f"{list_of_images=}")
+
+    # Create the plate
+    create_empty_plate(
+        full_zarr_plate,
+        name=plate_name,
+        images=list_of_images,
+        overwrite=overwrite,
+    )
 
     parallelization_list = []
     for row, column in well_rows_columns:
         parallelization_list.append(
             {
-                "zarr_url": (f"{zarr_dir}/{plate_name}.zarr/{row}/{column}/"),
+                "zarr_url": (f"{full_zarr_plate}/{row}/{column}/"),
                 "init_args": InitArgsCellVoyagerH5toOMEZarr(
                     input_files=input_files,
                     acquisitions=acquisitions,

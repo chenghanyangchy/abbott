@@ -45,7 +45,6 @@ def convert_single_h5_to_ome(
     ome_zarr_parameters: OMEZarrBuilderParams,
     metadata: pd.DataFrame,
     masking_label: Optional[str] = None,
-    overwrite: bool = False,
 ):
     """Abbott legacy H5 to OME-Zarr converter task.
 
@@ -61,7 +60,6 @@ def convert_single_h5_to_ome(
         ome_zarr_parameters: Parameters for the OME-Zarr builder.
         metadata: Metadata DataFrame containing site metadata.
         masking_label: Optional label for masking ROI e.g. `embryo`.
-        overwrite: Whether to overwrite existing converted OME-Zarr files.
     """
     filename = Path(input_file).stem
     logger.info(f"Converting {filename} to OME-Zarr at {zarr_url}")
@@ -122,11 +120,14 @@ def convert_single_h5_to_ome(
             channel_labels=channel_labels,
             channel_wavelengths=channel_wavelengths,
             axes_names=["c", "z", "y", "x"],
-            overwrite=overwrite,
+            overwrite=True,
         )
 
-        table = ome_zarr_container.build_image_roi_table(f"FOV_{ROI}")
-        ome_zarr_container.add_table("FOV_ROI_table", table=table, overwrite=overwrite)
+        FOV_table = ome_zarr_container.build_image_roi_table(f"FOV_{ROI}")
+        ome_zarr_container.add_table("FOV_ROI_table", table=FOV_table, overwrite=True)
+
+        well_table = ome_zarr_container.build_image_roi_table("well_1")
+        ome_zarr_container.add_table("well_ROI_table", table=well_table, overwrite=True)
 
         # Add label images if available
         if acquisition.allowed_label_channels is not None:
@@ -164,7 +165,7 @@ def convert_single_h5_to_ome(
                         ome_zarr_container.add_table(
                             f"{label_name}_ROI_table",
                             table=masking_roi_table,
-                            overwrite=overwrite,
+                            overwrite=True,
                         )
 
                     except ValueError as e:
@@ -194,7 +195,6 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         title="OME-Zarr Parameters", default=OMEZarrBuilderParams()
     ),
     masking_label: Optional[str] = None,
-    overwrite: bool = False,
 ):
     """Abbott legacy H5 to OME-Zarr converter task.
 
@@ -208,7 +208,6 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         axes_names: The layout of the image data. Currently only implemented for 'ZYX'.
         ome_zarr_parameters (OMEZarrBuilderParams): Parameters for the OME-Zarr builder.
         masking_label: Optional label for masking ROI e.g. `embryo`.
-        overwrite: Whether to overwrite existing converted OME-Zarr files.
     """
     logger.info(f"Converting abbott legacy H5 files to OME-Zarr for {zarr_url}")
     logger.info(f"For axes: {axes_names} and level {level}")
@@ -245,7 +244,6 @@ def convert_abbottlegacyh5_to_omezarr_compute(
             ome_zarr_parameters=ome_zarr_parameters,
             metadata=site_metadata,
             masking_label=masking_label,
-            overwrite=overwrite,
         )
 
         logger.info(f"Succesfully converted {file} to {new_zarr_url}")

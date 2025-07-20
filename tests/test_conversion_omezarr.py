@@ -48,13 +48,13 @@ def create_h5(
 @pytest.fixture
 def sample_h5_file_3d(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     """Create a sample h5 file for testing."""
-    # tmp_path = Path("/data/active/rhornb/pytest/conversion/")
+    tmp_path = Path(tmp_path) / "data"
     tmp_path.mkdir(parents=True, exist_ok=True)
-    h5_file = tmp_path / "B02_px-1229_py-0112.h5"
+    h5_file_path = tmp_path / "B02_px-1229_py-0112.h5"
     random_image_c0 = np.random.randint(0, 255, (10, 10, 10))
     random_image_c1 = np.random.randint(0, 255, (10, 10, 10))
     random_label_c0 = np.random.randint(0, 2, (10, 10, 10))
-    with h5py.File(h5_file, "w") as f:
+    with h5py.File(h5_file_path, "w") as f:
         create_h5(
             f,
             dset_name="ch_00/0",
@@ -80,14 +80,11 @@ def sample_h5_file_3d(tmp_path: Path) -> tuple[Path, dict[str, str]]:
             wavelength=405,
             img_type="label",
         )
-    return h5_file
+    return h5_file_path
 
 
-def test_full_workflow_3D(sample_h5_file_3d: tuple[str, str], tmp_path: Path):
-    # tmp_path = Path("/data/active/rhornb/pytest/conversion/")
-    zarr_dir = str(tmp_path / "test.zarr")
-    image_path = sample_h5_file_3d
-    image_path = str(image_path)
+def test_full_workflow_3D(sample_h5_file_3d: Path, tmp_path: Path):
+    zarr_dir = tmp_path.as_posix()
 
     allowed_image_channels_c0 = [
         {
@@ -135,13 +132,14 @@ def test_full_workflow_3D(sample_h5_file_3d: tuple[str, str], tmp_path: Path):
 
     parallelization_list = convert_abbottlegacyh5_to_omezarr_init(
         zarr_dir=zarr_dir,
-        input_dir=str(tmp_path),
+        input_dir=sample_h5_file_3d.parent.as_posix(),
         acquisitions=acquisitions,
         include_glob_patterns=None,
         exclude_glob_patterns=None,
         h5_extension=AllowedH5Extensions.H5,
         mrf_path=str(Path(__file__).parent / "data/MeasurementDetail.mrf"),
         mlf_path=str(Path(__file__).parent / "data/MeasurementData.mlf"),
+        overwrite=True,
     )["parallelization_list"]
 
     for image in parallelization_list:
@@ -152,8 +150,21 @@ def test_full_workflow_3D(sample_h5_file_3d: tuple[str, str], tmp_path: Path):
             wavelengths=wavelengths,
             ome_zarr_parameters=ome_zarr_parameters,
             masking_label="nuclei",
-            overwrite=True,
         )
 
         zarr_url = image_list_update["image_list_updates"][0]["zarr_url"]
         assert Path(zarr_url).exists()
+
+    # Test overwrite = False
+    with pytest.raises(FileExistsError):
+        convert_abbottlegacyh5_to_omezarr_init(
+            zarr_dir=zarr_dir,
+            input_dir=sample_h5_file_3d.parent.as_posix(),
+            acquisitions=acquisitions,
+            include_glob_patterns=None,
+            exclude_glob_patterns=None,
+            h5_extension=AllowedH5Extensions.H5,
+            mrf_path=str(Path(__file__).parent / "data/MeasurementDetail.mrf"),
+            mlf_path=str(Path(__file__).parent / "data/MeasurementData.mlf"),
+            overwrite=False,
+        )["parallelization_list"]
