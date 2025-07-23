@@ -10,6 +10,7 @@
 | Task | Description | Passing |
 | --- | --- | --- |
 | Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.| ✓ |
+| Convert Abbott-legacy H5 to OME-Zarr | Converts H5 files in abbott-legacy format to OME-Zarr files| ✓ |
 | Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning multiplexed 3D images across cycles.|✓|
 | Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|✓|
 | Compute Registration (warpfield) | Compute warpfield registration (see https://github.com/danionella/warpfield) for aligning multiplexed 3D images across cycles.|✓|

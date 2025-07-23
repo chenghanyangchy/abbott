@@ -29,7 +29,6 @@ def test_data_dir(tmp_path: Path, zenodo_zarr: Path) -> str:
     """
     Copy a test-data folder into a temporary folder.
     """
-    tmp_path = Path("/data/active/rhornb/fractal/pytest/")
     dest_dir = (tmp_path / "registration_data").as_posix()
     debug(zenodo_zarr, dest_dir)
     shutil.copytree(zenodo_zarr, dest_dir, dirs_exist_ok=True)
