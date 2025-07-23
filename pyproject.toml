@@ -28,14 +28,16 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "fractal-tasks-core == 1.5.3", 
+    "fractal-task-tools == 0.0.12",
     "itk", 
     "itk-elastix", 
     "numpy<2.0",
     "h5py", 
-    "ngio", 
+    "ngio",
     "scikit-image",
     "fsspec",
-    "fractal-task-tools == 0.0.12"
+    "pyarrow<15.0.0",
+    "warpfield",
 ]
 
 # Optional dependencies (e.g. for `pip install -e ".[dev]"`, see

@@ -10,20 +10,24 @@
 | Task | Description | Passing |
 | --- | --- | --- |
 | Convert Cellvoyager Multiplexing to existing OME-Zarr | Converts CV7000/CV8000 images and extends to existing OME-Zarr file.| ✓ |
-| Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis.|✓|
+| Convert Abbott-legacy H5 to OME-Zarr | Converts H5 files in abbott-legacy format to OME-Zarr files| ✓ |
+| Compute Registration (elastix) | Compute rigid/affine/b-spline registration for aligning multiplexed 3D images across cycles.|✓|
 | Apply Registration (elastix) | Apply rigid/affine/b-spline registration to images.|✓|
-| Compute Registration ROI (elastix) | Compute rigid/affine/b-spline registration for aligning images in multiplexed image analysis per ROI (e.g. embryo).|✓|
-| Apply Registration ROI (elastix) | Apply rigid/affine/b-spline registration to images per ROI (e.g. embryo).|✓|
+| Compute Registration (warpfield) | Compute warpfield registration (see https://github.com/danionella/warpfield) for aligning multiplexed 3D images across cycles.|✓|
+| Apply Registration (warpfield) | Apply warpfield registration.|✓|
 | Compute Channel Registration (elastix) | Compute similarity registration of all channels in an acquisition to a reference channel.|✓|
 | Apply Channel Registration (elastix) | Apply similarity registration to multi-channel acquisition.|✓|
 | Stardist Segmentation | Segment images using Stardist. |✓|
 | Seeded Watershed Segmentation | Performs segmentation (e.g., of cells) using a label image as seeds and an intensity image (e.g., membrane stain) for boundary detection. |✓|
 | Upsample Label Image | Upsamples label images to the highest image resolution. Useful if segmentation was peformed on e.g. level 1 to avoid resolution mismatch in downstream tasks. |✓|
 
+> [!IMPORTANT]
+> Warpfield Registration Tasks currently only run locally with CUDA > 12.x and not on Pelkmans cluster.
 
 ## Installation
 
 To install this task package on a Fractal server, get the whl in the Github release and use the local task collection.
+
 To install this package locally:
 ```
 git clone https://github.com/pelkmanslab/abbott
