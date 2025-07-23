@@ -1,5 +1,7 @@
 import os
 import shutil
+import stat
+import time
 from pathlib import Path
 
 import pooch
@@ -11,6 +13,23 @@ from devtools import debug
 def testdata_path() -> Path:
     TEST_DIR = Path(__file__).parent
     return TEST_DIR / "data/"
+
+
+def remove_readonly(func, path, _):
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
+def safe_rmtree(path, retries=5, delay=0.5):
+    for i in range(retries):
+        try:
+            shutil.rmtree(path, onerror=remove_readonly)
+            if not os.path.exists(path):
+                return
+        except Exception as e:
+            print(f"Retry {i+1}/{retries} failed: {e}")
+            time.sleep(delay)
+    raise RuntimeError(f"Failed to remove directory: {path}")
 
 
 @pytest.fixture(scope="session")
@@ -50,7 +69,8 @@ def zenodo_zarr(testdata_path: Path) -> str:
 
     # 3) Copy the downloaded Zarr into tests/data
     if os.path.isdir(str(folder)):
-        shutil.rmtree(str(folder))
+        # shutil.rmtree(str(folder))
+        safe_rmtree(str(folder))  # For Windows compatibility
     shutil.copytree(Path(zarr_full_path) / file_name, folder)
     return Path(folder)
 

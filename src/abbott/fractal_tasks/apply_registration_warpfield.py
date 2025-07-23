@@ -2,15 +2,15 @@
 # University of Zurich
 #
 # Original authors:
-# Joel Lüthi <joel.luethi@uzh.ch>
 # Ruth Hornbachner <ruth.hornbachner@uzh.ch>
 #
 # This file is part of Fractal and was originally developed by eXact lab S.r.l.
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""Computes and applies elastix registration."""
+"""Computes and applies warpfield registration."""
 
+import json
 import logging
 import os
 import shutil
@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import warpfield
 from fractal_tasks_core.tasks._zarr_utils import (
     _get_matching_ref_acquisition_path_heuristic,
     _update_well_metadata,
@@ -29,24 +30,18 @@ from ngio import open_ome_zarr_container, open_ome_zarr_well
 from ngio.images.ome_zarr_container import OmeZarrContainer
 from pydantic import validate_call
 
-from abbott.fractal_tasks.conversions import to_itk, to_numpy
 from abbott.registration.fractal_helper_tasks import (
     get_acquisition_paths,
     get_pad_width,
     pad_to_max_shape,
     unpad_array,
 )
-from abbott.registration.itk_elastix import (
-    adapt_itk_params,
-    apply_transform,
-    load_parameter_files,
-)
 
 logger = logging.getLogger(__name__)
 
 
 @validate_call
-def apply_registration_elastix(
+def apply_registration_warpfield(
     *,
     # Fractal parameters
     zarr_url: str,
@@ -58,7 +53,7 @@ def apply_registration_elastix(
     masking_label_name: Optional[str] = None,
     overwrite_input: bool = True,
 ):
-    """Apply elastix registration to images
+    """Apply warpfield registration to images
 
     Args:
         zarr_url: Path or url to the individual OME-Zarr image to be processed.
@@ -80,11 +75,12 @@ def apply_registration_elastix(
             bounding box of the ROI table. If `use_masks=False`, the whole
             bounding box will be loaded.
         overwrite_input: Whether the old image data should be replaced with the
-            newly registered image data.
+            newly registered image data. Currently only implemented for
+            `overwrite_input=True`.
 
     """
     logger.info(
-        f"Running `apply_registration_elastix` on {zarr_url=}, "
+        f"Running `warpfield_registration` on {zarr_url=}, "
         f"{roi_table=} and {reference_acquisition=}. "
         f", {use_masks=}, {masking_label_name=}, "
         f"Using {overwrite_input=} and {output_image_suffix=}"
@@ -98,7 +94,7 @@ def apply_registration_elastix(
     acquisition_ids = ome_zarr_well.acquisition_ids
 
     acq_dict = get_acquisition_paths(ome_zarr_well)
-    print(f"{acq_dict=}")
+    logger.info(f"{acq_dict=}")
 
     if reference_acquisition not in acquisition_ids:
         raise ValueError(
@@ -132,7 +128,7 @@ def apply_registration_elastix(
         if ref_roi_table.type() != "masking_roi_table":
             logger.warning(
                 f"ROI table {roi_table} in reference OME-Zarr is not "
-                "a masking ROI table. Falling back to use_masks=False."
+                f"a masking ROI table. Falling back to use_masks=False."
             )
             use_masks = False
         if masking_label_name is None:
@@ -145,7 +141,7 @@ def apply_registration_elastix(
     ####################
     # Process images
     ####################
-    logger.info("Starting to apply elastix registration to images...")
+    logger.info("Starting to apply warpfield registration to images...")
     write_registered_zarr(
         zarr_url=zarr_url,
         reference_zarr_url=reference_zarr_url,
@@ -155,7 +151,7 @@ def apply_registration_elastix(
         use_masks=use_masks,
         masking_label_name=masking_label_name,
     )
-    logger.info("Finished applying elastix registration to images.")
+    logger.info("Finished applying warpfield registration to images.")
 
     ####################
     # Process labels
@@ -216,7 +212,11 @@ def apply_registration_elastix(
         image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
     else:
         image_list_updates = dict(
-            image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]
+            image_list_updates=[
+                dict(
+                    zarr_url=new_zarr_url, origin=zarr_url, types=dict(registered=True)
+                )
+            ]
         )
         # Update the metadata of the the well
         well_url, new_img_path = _split_well_path_image_path(new_zarr_url)
@@ -238,7 +238,7 @@ def write_registered_zarr(
     use_masks: bool = False,
     masking_label_name: Optional[str] = None,
 ):
-    """Apply elastix registration to a Zarr image
+    """Apply warpfield registration to a Zarr image
 
     This function loads the image or label data from a zarr array based on the
     ROI bounding-box coordinates and stores them into a new zarr array.
@@ -255,8 +255,8 @@ def write_registered_zarr(
             was used as the reference for the registration.
         new_zarr_url: Path or url to the new OME-Zarr image to be written
         roi_table_name: Name of the ROI table which has been used during
-            computation of registration.
-        ome_zarr_mov: OME-Zarr container of the moving image to be registered.
+            computation of registration parameters.
+        ome_zarr_mov: OME-Zarr container for the moving image to be registered.
         use_masks: If `True` applies masked image loading, otherwise loads the
             whole bounding box of the ROI table.
         masking_label_name: Name of the label that will be used for masking.
@@ -286,17 +286,14 @@ def write_registered_zarr(
         ref_images = ome_zarr_ref.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path="0",
         )
         mov_images = ome_zarr_mov.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path="0",
         )
         new_images = ome_zarr_new.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path="0",
         )
 
     else:
@@ -312,14 +309,27 @@ def write_registered_zarr(
     # (otherwise, we can't assign them to the reference regions)
     for i_ROI, mov_roi in enumerate(roi_table_mov.rois()):
         # Load registration parameters
-        fn_pattern = f"{roi_table_name}_roi_{i_ROI}_t*.txt"
+        fn_pattern = f"{roi_table_name}_roi_{i_ROI}.json"
         parameter_path = Path(zarr_url) / "registration"
-        parameter_files = sorted(parameter_path.glob(fn_pattern))
-        parameter_object = load_parameter_files([str(x) for x in parameter_files])
+        parameter_file = sorted(parameter_path.glob(fn_pattern))
+        if len(parameter_file) > 1:
+            raise ValueError(
+                "Found multiple warpfield registration json files for "
+                f"{fn_pattern} in {parameter_path}. "
+                "Please ensure there is only one file per ROI."
+            )
+        with open(parameter_file[0]) as f:
+            warp_map_dict = json.load(f)
 
-        pxl_sizes_zyx = mov_images.pixel_size.zyx
+        warp_map = warpfield.register.WarpMap(
+            warp_field=np.array(warp_map_dict["warp_field"]),
+            block_size=np.array(warp_map_dict["block_size"]),
+            block_stride=np.array(warp_map_dict["block_stride"]),
+            ref_shape=warp_map_dict["ref_shape"],
+            mov_shape=warp_map_dict["mov_shape"],
+        )
+
         axes_list = mov_images.meta.axes_mapper.on_disk_axes_names
-
         if axes_list == ["c", "z", "y", "x"]:
             num_channels = len(mov_images.meta.channel_labels)
             # Loop over channels
@@ -348,14 +358,7 @@ def write_registered_zarr(
                         c=ind_ch,
                     ).squeeze()
 
-                # Apply the registration
-                itk_img = to_itk(data_mov, scale=pxl_sizes_zyx)
-                parameter_object_adapted = adapt_itk_params(
-                    parameter_object=parameter_object, itk_img=itk_img
-                )
-                data_mov_reg = to_numpy(
-                    apply_transform(itk_img, parameter_object_adapted)
-                )
+                data_mov_reg = warp_map.apply(data_mov)
 
                 if use_masks:
                     # Bring back to original shape
@@ -365,6 +368,7 @@ def write_registered_zarr(
                         c=ind_ch,
                         patch=np.expand_dims(data_mov_reg, axis=0),
                     )
+
                 else:
                     new_images.set_roi(
                         roi=mov_roi,
@@ -391,15 +395,10 @@ def write_registered_zarr(
                 data_mov = pad_to_max_shape(data_mov, max_shape)
             else:
                 data_mov = mov_images.get_roi(
-                    roi=i_ROI,
+                    roi=mov_roi,
                 )
 
-            # Apply the registration
-            itk_img = to_itk(data_mov, scale=tuple(pxl_sizes_zyx))
-            parameter_object_adapted = adapt_itk_params(
-                parameter_object=parameter_object, itk_img=itk_img
-            )
-            data_mov_reg = to_numpy(apply_transform(itk_img, parameter_object_adapted))
+            data_mov_reg = warp_map.apply(data_mov)
 
             if use_masks:
                 # Bring back to original shape
@@ -408,9 +407,10 @@ def write_registered_zarr(
                     label=i_ROI + 1,
                     patch=data_mov_reg,
                 )
+
             else:
                 new_images.set_roi(
-                    label=i_ROI,
+                    roi=mov_roi,
                     patch=data_mov_reg,
                 )
             new_images.consolidate()
@@ -442,6 +442,6 @@ if __name__ == "__main__":
     from fractal_task_tools.task_wrapper import run_fractal_task
 
     run_fractal_task(
-        task_function=apply_registration_elastix,
+        task_function=apply_registration_warpfield,
         logger_name=logger.name,
     )

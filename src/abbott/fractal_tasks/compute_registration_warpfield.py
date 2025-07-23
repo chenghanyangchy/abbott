@@ -10,25 +10,23 @@
 # Zurich.
 """Calculates registration for image-based registration."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
+import warpfield
 from fractal_tasks_core.tasks.io_models import InitArgsRegistration
 from ngio import open_ome_zarr_container
 from pydantic import validate_call
-from skimage.exposure import rescale_intensity
 
-from abbott.fractal_tasks.conversions import to_itk
 from abbott.registration.fractal_helper_tasks import pad_to_max_shape
-from abbott.registration.itk_elastix import register_transform_only
 
 logger = logging.getLogger(__name__)
 
 
 @validate_call
-def compute_registration_elastix(
+def compute_registration_warpfield(
     *,
     # Fractal arguments
     zarr_url: str,
@@ -36,14 +34,12 @@ def compute_registration_elastix(
     # Core parameters
     level: int = 0,
     wavelength_id: str,
-    parameter_files: list[str],
-    lower_rescale_quantile: float = 0.0,
-    upper_rescale_quantile: float = 0.99,
+    path_to_registration_recipe: Optional[str] = None,
     roi_table: str = "FOV_ROI_table",  # TODO: allow "emb_ROI_table"
     use_masks: bool = False,
     masking_label_name: Optional[str] = None,
 ) -> None:
-    """Calculate elastix registration based on images
+    """Calculate warpfield registration based on images
 
     This task consists of 3 parts:
 
@@ -63,15 +59,9 @@ def compute_registration_elastix(
             is supported.
         wavelength_id: Wavelength that will be used for image-based
             registration; e.g. `A01_C01` for Yokogawa, `C01` for MD.
-        parameter_files: Paths to the elastix parameter files to be used. List order is
-             order of registration. E.g. parse first rigid, then affine
-             and lastly bspline.
-        lower_rescale_quantile: Lower quantile for rescaling the image
-            intensities before applying registration. Can be helpful
-             to deal with image artifacts. Default is 0.
-        upper_rescale_quantile: Upper quantile for rescaling the image
-            intensities before applying registration. Can be helpful
-            to deal with image artifacts. Default is 0.99.
+        path_to_registration_recipe: Path to the warpfield .yml registration recipe.
+            This parameter is optional, if not provided, the default .yml recipe
+            will be used.
         roi_table: Name of the ROI table over which the task loops to
             calculate the registration. Examples: `FOV_ROI_table` => loop over
             the field of views, `well_ROI_table` => process the whole well as
@@ -81,15 +71,19 @@ def compute_registration_elastix(
             loading is relevant when only a subset of the bounding box should
             actually be processed (e.g. running within `embryo_ROI_table`).
         masking_label_name: Optional label for masking ROI e.g. `embryo`.
-
     """
     logger.info(
         f"Running for {zarr_url=}.\n"
-        f"Calculating elastix registration per {roi_table=} for "
+        f"Calculating warpfield registration per {roi_table=} for "
         f"{wavelength_id=}."
     )
 
     reference_zarr_url = init_args.reference_zarr_url
+
+    if level != 0:
+        raise NotImplementedError(
+            "Currently, only level 0 is supported for warpfield registration."
+        )
 
     # Load channel to register by
     ome_zarr_ref = open_ome_zarr_container(reference_zarr_url)
@@ -153,8 +147,6 @@ def compute_registration_elastix(
     # Read pixel sizes from zarr attributes
     pxl_sizes_zyx_ref_full_res = ome_zarr_ref.get_image(path="0").pixel_size.zyx
     pxl_sizes_zyx_mov_full_res = ome_zarr_mov.get_image(path="0").pixel_size.zyx
-    pxl_sizes_zyx_ref = ome_zarr_ref.get_image(path=str(level)).pixel_size.zyx
-    pxl_sizes_zyx_mov = ome_zarr_mov.get_image(path=str(level)).pixel_size.zyx
 
     if pxl_sizes_zyx_ref_full_res != pxl_sizes_zyx_mov_full_res:
         raise ValueError(
@@ -164,6 +156,7 @@ def compute_registration_elastix(
 
     num_ROIs = len(ref_roi_table.rois())
     for i_ROI, ref_roi in enumerate(ref_roi_table.rois()):
+        # For masked loading, assumes that i_ROI+1 == label_id of ROI
         mov_roi = mov_roi_table.rois()[i_ROI]
         logger.info(
             f"Now processing ROI {i_ROI+1}/{num_ROIs} " f"for {wavelength_id=}."
@@ -197,22 +190,6 @@ def compute_registration_elastix(
                 c=channel_index_align,
             ).squeeze()
 
-        # Rescale the images
-        img_ref = rescale_intensity(
-            img_ref,
-            in_range=(
-                np.quantile(img_ref, lower_rescale_quantile),
-                np.quantile(img_ref, upper_rescale_quantile),
-            ),
-        )
-        img_mov = rescale_intensity(
-            img_mov,
-            in_range=(
-                np.quantile(img_mov, lower_rescale_quantile),
-                np.quantile(img_mov, upper_rescale_quantile),
-            ),
-        )
-
         ##############
         #  Calculate the transformation
         ##############
@@ -221,25 +198,42 @@ def compute_registration_elastix(
                 "This registration is not implemented for ROIs with "
                 "different shapes between acquisitions."
             )
-        ref = to_itk(img_ref, scale=pxl_sizes_zyx_ref)
-        move = to_itk(img_mov, scale=pxl_sizes_zyx_mov)
-        trans = register_transform_only(ref, move, parameter_files)
+
+        if path_to_registration_recipe is not None:
+            try:
+                recipe = warpfield.Recipe.from_yaml(path_to_registration_recipe)
+            except Exception as e:
+                raise ValueError(
+                    "Failed to load registration recipe from "
+                    f"{path_to_registration_recipe}. "
+                    "Please check the file path and format."
+                ) from e
+        else:
+            recipe = warpfield.Recipe.from_yaml("default.yml")
+
+        # Start registration
+        _, warp_map, _ = warpfield.register_volumes(img_ref, img_mov, recipe)
 
         # Write transform parameter files
         # TODO: Add overwrite check (it overwrites by default)
         # FIXME: Figure out where to put files
-        for i in range(trans.GetNumberOfParameterMaps()):
-            trans_map = trans.GetParameterMap(i)
-            # FIXME: Switch from ROI index to ROI names?
-            fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{i_ROI}_t{i}.txt")
-            fn.parent.mkdir(exist_ok=True, parents=True)
-            trans.WriteParameterFile(trans_map, fn.as_posix())
+        fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{i_ROI}.json")
+        warpfield_dict = {
+            "warp_field": warp_map.warp_field.tolist(),
+            "block_size": warp_map.block_size.tolist(),
+            "block_stride": warp_map.block_stride.tolist(),
+            "ref_shape": warp_map.ref_shape,
+            "mov_shape": warp_map.mov_shape,
+        }
+        fn.parent.mkdir(exist_ok=True, parents=True)
+        with open(fn, "w") as f:
+            json.dump(warpfield_dict, f)
 
 
 if __name__ == "__main__":
     from fractal_task_tools.task_wrapper import run_fractal_task
 
     run_fractal_task(
-        task_function=compute_registration_elastix,
+        task_function=compute_registration_warpfield,
         logger_name=logger.name,
     )
