@@ -80,30 +80,26 @@ def convert_single_h5_to_ome(
         imgs_dict = {}
         channel_wavelengths = []
         for channel in acquisition.allowed_image_channels:
-            try:
-                img, scale = h5_load(
-                    input_path=input_file,
-                    channel=channel,
-                    level=level,
-                    cycle=int(c),
-                    img_type="intensity",
-                )
-            except RuntimeError as e:
-                logger.error(
-                    f"Error loading image for channel {channel.label} "
-                    f"and wavelength {channel.wavelength_id} in cycle {c}: {e}"
-                    "Please check if the channel is present in the H5 file."
-                )
-            channel_wavelengths.append(wavelengths[channel.wavelength_id])
-            channel_label = (
-                channel.new_label if channel.new_label is not None else channel.label
+            img, scale = h5_load(
+                input_path=input_file,
+                channel=channel,
+                level=level,
+                cycle=int(c),
+                img_type="intensity",
             )
-            imgs_dict[channel_label] = img
+            if img is not None:
+                channel_wavelengths.append(wavelengths[channel.wavelength_id])
+                channel_label = (
+                    channel.new_label
+                    if channel.new_label is not None
+                    else channel.label
+                )
+                imgs_dict[channel_label] = img
 
         array = np.stack(list(imgs_dict.values()), axis=0)
         channel_labels = list(imgs_dict.keys())
 
-        # Save for each cycle
+        # Save per cycle
         zarr_url_cycle_roi = f"{zarr_url}/{c}/{ROI}"
 
         xy_pixelsize = float(scale[1])
@@ -143,8 +139,7 @@ def convert_single_h5_to_ome(
                 except RuntimeError as e:
                     logger.error(
                         f"Error loading label for channel {label_channel.label} "
-                        f"and wavelength {label_channel.wavelength_id} in cycle {c}: "
-                        f"{e}"
+                        f"in cycle {c}: {e}"
                         "Please check if the channel is present in the H5 file."
                     )
                 label_name = (

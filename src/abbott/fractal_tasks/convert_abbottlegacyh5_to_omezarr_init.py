@@ -145,17 +145,18 @@ def convert_abbottlegacyh5_to_omezarr_init(
 
     # Check that all channel names are unique across all acquisitions
     channel_labels_images_new = [
-        channel.new_label
+        channel.new_label if channel.new_label is not None else channel.label
         for acq in acquisitions.values()
         for channel in acq.allowed_image_channels
     ]
-    assert len(channel_labels_images_new) == len(set(channel_labels_images_new)), (
-        "Channel labels must be unique across all acquisitions. "
-        f"Found duplicates: {channel_labels_images_new}"
-    )
+    if channel_labels_images_new:
+        assert len(channel_labels_images_new) == len(set(channel_labels_images_new)), (
+            "Channel labels must be unique across all acquisitions. "
+            f"Found duplicates: {channel_labels_images_new}"
+        )
 
     channel_labels_labels_new = [
-        channel.new_label
+        channel.new_label if channel.new_label is not None else channel.label
         for acq in acquisitions.values()
         if acq.allowed_label_channels is not None
         for channel in acq.allowed_label_channels
