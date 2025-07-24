@@ -117,7 +117,7 @@ def test_full_workflow_3D(sample_h5_file_3d: Path, tmp_path: Path):
     }
 
     ome_zarr_parameters = OMEZarrBuilderParams(
-        number_multiscale=2,
+        number_multiscale=4,
         xy_scaling_factor=2,
         z_scaling_factor=1,
         create_all_ome_axis=True,

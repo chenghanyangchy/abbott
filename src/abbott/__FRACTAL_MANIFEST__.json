@@ -1267,66 +1267,12 @@
               "new_label": {
                 "title": "New Label",
                 "type": "string"
-              },
-              "window": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/Window"
-                  }
-                ],
-                "title": "Window"
-              },
-              "color": {
-                "title": "Color",
-                "type": "string"
-              },
-              "active": {
-                "default": true,
-                "title": "Active",
-                "type": "boolean"
-              },
-              "coefficient": {
-                "default": 1,
-                "title": "Coefficient",
-                "type": "integer"
-              },
-              "inverted": {
-                "default": false,
-                "title": "Inverted",
-                "type": "boolean"
               }
             },
             "required": [
               "wavelength_id"
             ],
             "title": "OmeroChannel",
-            "type": "object"
-          },
-          "Window": {
-            "description": "Custom class for Omero-channel window, based on OME-NGFF v0.4.",
-            "properties": {
-              "min": {
-                "title": "Min",
-                "type": "integer"
-              },
-              "max": {
-                "title": "Max",
-                "type": "integer"
-              },
-              "start": {
-                "title": "Start",
-                "type": "integer"
-              },
-              "end": {
-                "title": "End",
-                "type": "integer"
-              }
-            },
-            "required": [
-              "start",
-              "end"
-            ],
-            "title": "Window",
             "type": "object"
           }
         },
@@ -1534,33 +1480,6 @@
               "new_label": {
                 "title": "New Label",
                 "type": "string"
-              },
-              "window": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/Window"
-                  }
-                ],
-                "title": "Window"
-              },
-              "color": {
-                "title": "Color",
-                "type": "string"
-              },
-              "active": {
-                "default": true,
-                "title": "Active",
-                "type": "boolean"
-              },
-              "coefficient": {
-                "default": 1,
-                "title": "Coefficient",
-                "type": "integer"
-              },
-              "inverted": {
-                "default": false,
-                "title": "Inverted",
-                "type": "boolean"
               }
             },
             "required": [
@@ -1586,33 +1505,6 @@
               "wavelength_omezarr"
             ],
             "title": "WavelengthModel",
-            "type": "object"
-          },
-          "Window": {
-            "description": "Custom class for Omero-channel window, based on OME-NGFF v0.4.",
-            "properties": {
-              "min": {
-                "title": "Min",
-                "type": "integer"
-              },
-              "max": {
-                "title": "Max",
-                "type": "integer"
-              },
-              "start": {
-                "title": "Start",
-                "type": "integer"
-              },
-              "end": {
-                "title": "End",
-                "type": "integer"
-              }
-            },
-            "required": [
-              "start",
-              "end"
-            ],
-            "title": "Window",
             "type": "object"
           }
         },
@@ -1651,11 +1543,11 @@
                   "wavelength_omezarr": "A02_C02"
                 },
                 {
-                  "wavelength_abbott_legacy": 568,
+                  "wavelength_abbott_legacy": 561,
                   "wavelength_omezarr": "A03_C03"
                 },
                 {
-                  "wavelength_abbott_legacy": 647,
+                  "wavelength_abbott_legacy": 640,
                   "wavelength_omezarr": "A04_C04"
                 }
               ]

@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Optional
 
 import h5py
-import numpy as np
 import pandas as pd
 
 from abbott.fractal_tasks.converter.io_models import (
@@ -160,7 +159,7 @@ def h5_load(
     level: int,
     cycle: int,
     img_type: str,
-) -> tuple[np.ndarray, list[float]]:
+):
     """Load a dataset from an HDF5 file based on metadata."""
     with h5py.File(input_path, "r") as f:
         dset = h5_select(
@@ -169,9 +168,17 @@ def h5_load(
                 "img_type": img_type,
                 "cycle": cycle,
                 "stain": channel.label,
-                "wavelength": int(channel.wavelength_id),
                 "level": level,
             },
         )
+        # Check if only one dataset is returned
+        if dset is None:
+            logger.warning(
+                f"Dataset not found for channel {channel.label}, "
+                f"wavelength {channel.wavelength_id}, cycle {cycle}, "
+                f"level {level}, img_type {img_type}."
+            )
+            return None, []
+
         scale = dset.attrs["element_size_um"]
         return dset[:], scale

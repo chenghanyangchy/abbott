@@ -13,8 +13,7 @@
 
 from enum import Enum
 
-from fractal_tasks_core.channels import Window
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class OmeroChannel(BaseModel):
@@ -25,14 +24,6 @@ class OmeroChannel(BaseModel):
         index: Do not change. For internal use only.
         label: Name of the channel.
         new_label: Optional new name for the channel.
-        window: Optional `Window` object to set default display settings. If
-            unset, it will be set to the full bit range of the image
-            (e.g. 0-65535 for 16 bit images).
-        color: Optional hex colormap to display the channel in napari (it
-            must be of length 6, e.g. `00FFFF`).
-        active: Should this channel be shown in the viewer?
-        coefficient: Do not change. Omero-channel attribute.
-        inverted: Do not change. Omero-channel attribute.
     """
 
     # Custom
@@ -44,31 +35,6 @@ class OmeroChannel(BaseModel):
 
     label: str | None = None
     new_label: str | None = None
-    window: Window | None = None
-    color: str | None = None
-    active: bool = True
-    coefficient: int = 1
-    inverted: bool = False
-
-    @field_validator("color", mode="after")
-    @classmethod
-    def valid_hex_color(cls, v: str | None) -> str | None:
-        """Check that `color` is made of exactly six elements which are letters
-
-        (a-f or A-F) or digits (0-9).
-        """
-        if v is None:
-            return v
-        if len(v) != 6:
-            raise ValueError(f'color must have length 6 (given: "{v}")')
-        allowed_characters = "abcdefABCDEF0123456789"
-        for character in v:
-            if character not in allowed_characters:
-                raise ValueError(
-                    "color must only include characters from "
-                    f'"{allowed_characters}" (given: "{v}")'
-                )
-        return v
 
 
 class MultiplexingAcquisition(BaseModel):
@@ -135,8 +101,8 @@ def _default_wavelength():
     return [
         WavelengthModel(wavelength_abbott_legacy=405, wavelength_omezarr="A01_C01"),
         WavelengthModel(wavelength_abbott_legacy=488, wavelength_omezarr="A02_C02"),
-        WavelengthModel(wavelength_abbott_legacy=568, wavelength_omezarr="A03_C03"),
-        WavelengthModel(wavelength_abbott_legacy=647, wavelength_omezarr="A04_C04"),
+        WavelengthModel(wavelength_abbott_legacy=561, wavelength_omezarr="A03_C03"),
+        WavelengthModel(wavelength_abbott_legacy=640, wavelength_omezarr="A04_C04"),
     ]
 
 
