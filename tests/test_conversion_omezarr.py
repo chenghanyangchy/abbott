@@ -46,15 +46,16 @@ def create_h5(
 
 
 @pytest.fixture
-def sample_h5_file_3d(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+def sample_h5_file_3d(tmp_path: Path):
     """Create a sample h5 file for testing."""
     tmp_path = Path(tmp_path) / "data"
     tmp_path.mkdir(parents=True, exist_ok=True)
-    h5_file_path = tmp_path / "B02_px-1229_py-0112.h5"
+    h5_file_path_1 = tmp_path / "B02_px-1229_py-0112.h5"
+    h5_file_path_2 = tmp_path / "B02_px-2514_py+0114.h5"
     random_image_c0 = np.random.randint(0, 255, (10, 10, 10))
     random_image_c1 = np.random.randint(0, 255, (10, 10, 10))
     random_label_c0 = np.random.randint(0, 2, (10, 10, 10))
-    with h5py.File(h5_file_path, "w") as f:
+    with h5py.File(h5_file_path_1, "w") as f:
         create_h5(
             f,
             dset_name="ch_00/0",
@@ -80,12 +81,38 @@ def sample_h5_file_3d(tmp_path: Path) -> tuple[Path, dict[str, str]]:
             wavelength=405,
             img_type="label",
         )
-    return h5_file_path
+
+    with h5py.File(h5_file_path_2, "w") as f:
+        create_h5(
+            f,
+            dset_name="ch_00/0",
+            data=random_image_c0,
+            stain="DAPI",
+            cycle=0,
+            wavelength=405,
+        )
+        create_h5(
+            f,
+            dset_name="ch_01/0",
+            data=random_image_c1,
+            stain="FITC",
+            cycle=1,
+            wavelength=488,
+        )
+        create_h5(
+            f,
+            dset_name="nuclei/0",
+            data=random_label_c0,
+            stain="nuclei",
+            cycle=0,
+            wavelength=405,
+            img_type="label",
+        )
+    return [h5_file_path_1, h5_file_path_2]
 
 
-def test_full_workflow_3D(sample_h5_file_3d: Path, tmp_path: Path):
+def test_full_workflow_3D(sample_h5_file_3d: list[Path], tmp_path: Path):
     zarr_dir = tmp_path.as_posix()
-
     allowed_image_channels_c0 = [
         {
             "wavelength_id": 405,
@@ -132,7 +159,7 @@ def test_full_workflow_3D(sample_h5_file_3d: Path, tmp_path: Path):
 
     parallelization_list = convert_abbottlegacyh5_to_omezarr_init(
         zarr_dir=zarr_dir,
-        input_dir=sample_h5_file_3d.parent.as_posix(),
+        input_dir=sample_h5_file_3d[0].parent.as_posix(),
         acquisitions=acquisitions,
         include_glob_patterns=None,
         exclude_glob_patterns=None,
@@ -159,7 +186,7 @@ def test_full_workflow_3D(sample_h5_file_3d: Path, tmp_path: Path):
     with pytest.raises(FileExistsError):
         convert_abbottlegacyh5_to_omezarr_init(
             zarr_dir=zarr_dir,
-            input_dir=sample_h5_file_3d.parent.as_posix(),
+            input_dir=sample_h5_file_3d[0].parent.as_posix(),
             acquisitions=acquisitions,
             include_glob_patterns=None,
             exclude_glob_patterns=None,
