@@ -115,7 +115,7 @@ def convert_single_h5_to_ome(
             channel_labels=channel_labels,
             channel_wavelengths=channel_wavelengths,
             axes_names=["c", "z", "y", "x"],
-            overwrite=True,
+            overwrite=False,
         )
 
         FOV_table = ome_zarr_container.build_image_roi_table(f"FOV_{ROI}")
