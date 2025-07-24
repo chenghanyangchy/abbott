@@ -94,6 +94,8 @@ def convert_single_h5_to_ome(
                     if channel.new_label is not None
                     else channel.label
                 )
+                xy_pixelsize = float(scale[1])
+                z_spacing = float(scale[0]) if len(scale) > 2 else 1
                 imgs_dict[channel_label] = img
 
         array = np.stack(list(imgs_dict.values()), axis=0)
@@ -101,9 +103,6 @@ def convert_single_h5_to_ome(
 
         # Save per cycle
         zarr_url_cycle_roi = f"{zarr_url}/{c}/{ROI}"
-
-        xy_pixelsize = float(scale[1])
-        z_spacing = float(scale[0]) if len(scale) > 2 else 1
 
         ome_zarr_container = create_ome_zarr_from_array(
             store=zarr_url_cycle_roi,
@@ -144,7 +143,7 @@ def convert_single_h5_to_ome(
                     )
                 label_name = (
                     label_channel.new_label
-                    if label_channel.new_label
+                    if label_channel.new_label is not None
                     else label_channel.label
                 )
 
