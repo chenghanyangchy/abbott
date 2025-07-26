@@ -215,12 +215,16 @@ def convert_abbottlegacyh5_to_omezarr_init(
     logger.info(f"{list_of_images=}")
 
     # Create the plate
-    create_empty_plate(
-        full_zarr_plate,
-        name=plate_name,
-        images=list_of_images,
-        overwrite=overwrite,
-    )
+    if not overwrite and Path(full_zarr_plate).exists():
+        logger.info(f"Skipping creation of {full_zarr_plate} as it already exists.")
+
+    else:
+        create_empty_plate(
+            full_zarr_plate,
+            name=plate_name,
+            images=list_of_images,
+            overwrite=True,
+        )
 
     parallelization_list = []
     for row, column in well_rows_columns:
@@ -233,6 +237,7 @@ def convert_abbottlegacyh5_to_omezarr_init(
                     well_ID=f"{row}{column}",
                     mrf_path=mrf_path,
                     mlf_path=mlf_path,
+                    overwrite=overwrite,
                 ).model_dump(),
             }
         )
