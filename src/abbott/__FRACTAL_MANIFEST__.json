@@ -1399,6 +1399,10 @@
               "mlf_path": {
                 "title": "Mlf Path",
                 "type": "string"
+              },
+              "overwrite": {
+                "title": "Overwrite",
+                "type": "boolean"
               }
             },
             "required": [
@@ -1406,7 +1410,8 @@
               "acquisitions",
               "well_ID",
               "mrf_path",
-              "mlf_path"
+              "mlf_path",
+              "overwrite"
             ],
             "title": "InitArgsCellVoyagerH5toOMEZarr",
             "type": "object"
@@ -1579,12 +1584,6 @@
             "title": "Masking Label",
             "type": "string",
             "description": "Optional label for masking ROI e.g. `embryo`."
-          },
-          "overwrite": {
-            "default": true,
-            "title": "Overwrite",
-            "type": "boolean",
-            "description": "Whether to overwrite existing OME-Zarr data. Default is True."
           }
         },
         "required": [

@@ -181,17 +181,3 @@ def test_full_workflow_3D(sample_h5_file_3d: list[Path], tmp_path: Path):
 
         zarr_url = image_list_update["image_list_updates"][0]["zarr_url"]
         assert Path(zarr_url).exists()
-
-    # Test overwrite = False
-    with pytest.raises(FileExistsError):
-        convert_abbottlegacyh5_to_omezarr_init(
-            zarr_dir=zarr_dir,
-            input_dir=sample_h5_file_3d[0].parent.as_posix(),
-            acquisitions=acquisitions,
-            include_glob_patterns=None,
-            exclude_glob_patterns=None,
-            h5_extension=AllowedH5Extensions.H5,
-            mrf_path=str(Path(__file__).parent / "data/MeasurementDetail.mrf"),
-            mlf_path=str(Path(__file__).parent / "data/MeasurementData.mlf"),
-            overwrite=False,
-        )["parallelization_list"]

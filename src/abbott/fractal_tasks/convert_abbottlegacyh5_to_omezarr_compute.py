@@ -195,7 +195,6 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         title="OME-Zarr Parameters", default=OMEZarrBuilderParams()
     ),
     masking_label: Optional[str] = None,
-    overwrite: bool = True,
 ):
     """Abbott legacy H5 to OME-Zarr converter task.
 
@@ -209,7 +208,6 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         axes_names: The layout of the image data. Currently only implemented for 'ZYX'.
         ome_zarr_parameters (OMEZarrBuilderParams): Parameters for the OME-Zarr builder.
         masking_label: Optional label for masking ROI e.g. `embryo`.
-        overwrite: Whether to overwrite existing OME-Zarr data. Default is True.
     """
     logger.info(f"Converting abbott legacy H5 files to OME-Zarr for {zarr_url}")
     logger.info(f"For axes: {axes_names} and level {level}")
@@ -246,7 +244,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
             ome_zarr_parameters=ome_zarr_parameters,
             metadata=site_metadata,
             masking_label=masking_label,
-            overwrite=overwrite,
+            overwrite=init_args.overwrite,
         )
 
         logger.info(f"Succesfully converted {file} to {new_zarr_urls}")

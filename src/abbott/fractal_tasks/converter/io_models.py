@@ -71,6 +71,7 @@ class InitArgsCellVoyagerH5toOMEZarr(BaseModel):
             right subset of image files
         mrf_path: Path to the MRF file for metadata extraction.
         mlf_path: Path to the MLF file for metadata extraction.
+        overwrite: Whether to overwrite existing OME-Zarr data.
     """
 
     input_files: list[str]
@@ -78,6 +79,7 @@ class InitArgsCellVoyagerH5toOMEZarr(BaseModel):
     well_ID: str
     mrf_path: str
     mlf_path: str
+    overwrite: bool
 
 
 class WavelengthModel(BaseModel):
