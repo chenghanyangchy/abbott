@@ -1579,6 +1579,12 @@
             "title": "Masking Label",
             "type": "string",
             "description": "Optional label for masking ROI e.g. `embryo`."
+          },
+          "overwrite": {
+            "default": true,
+            "title": "Overwrite",
+            "type": "boolean",
+            "description": "Whether to overwrite existing OME-Zarr data. Default is True."
           }
         },
         "required": [
