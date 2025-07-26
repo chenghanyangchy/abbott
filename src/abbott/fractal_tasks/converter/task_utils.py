@@ -149,7 +149,11 @@ def h5_select(
             else:
                 dsets.append(dset)
     if len(dsets) > 1:
-        raise ValueError("Found multiple datasets matching the selection criteria.")
+        logger.warning(
+            "Found multiple datasets matching the selection criteria "
+            f"for attributes {attrs_select} and "
+            f"not attributes {not_attrs_select}. Returning the first one."
+        )
     return dsets[0] if dsets else None
 
 

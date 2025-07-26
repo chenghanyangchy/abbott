@@ -45,6 +45,7 @@ def convert_single_h5_to_ome(
     ome_zarr_parameters: OMEZarrBuilderParams,
     metadata: pd.DataFrame,
     masking_label: Optional[str] = None,
+    overwrite: bool = True,
 ):
     """Abbott legacy H5 to OME-Zarr converter task.
 
@@ -60,6 +61,7 @@ def convert_single_h5_to_ome(
         ome_zarr_parameters: Parameters for the OME-Zarr builder.
         metadata: Metadata DataFrame containing site metadata.
         masking_label: Optional label for masking ROI e.g. `embryo`.
+        overwrite: Whether to overwrite existing OME-Zarr data. Default is True.
     """
     filename = Path(input_file).stem
     logger.info(f"Converting {filename} to OME-Zarr at {zarr_url}")
@@ -103,6 +105,10 @@ def convert_single_h5_to_ome(
 
         # Save per cycle
         zarr_url_cycle_roi = f"{zarr_url}/{c}/{ROI}"
+
+        if not overwrite and Path(zarr_url_cycle_roi).exists():
+            logger.info(f"Skipping {zarr_url_cycle_roi} as it already exists.")
+            continue
 
         ome_zarr_container = create_ome_zarr_from_array(
             store=zarr_url_cycle_roi,
@@ -189,6 +195,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         title="OME-Zarr Parameters", default=OMEZarrBuilderParams()
     ),
     masking_label: Optional[str] = None,
+    overwrite: bool = True,
 ):
     """Abbott legacy H5 to OME-Zarr converter task.
 
@@ -202,6 +209,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         axes_names: The layout of the image data. Currently only implemented for 'ZYX'.
         ome_zarr_parameters (OMEZarrBuilderParams): Parameters for the OME-Zarr builder.
         masking_label: Optional label for masking ROI e.g. `embryo`.
+        overwrite: Whether to overwrite existing OME-Zarr data. Default is True.
     """
     logger.info(f"Converting abbott legacy H5 files to OME-Zarr for {zarr_url}")
     logger.info(f"For axes: {axes_names} and level {level}")
@@ -229,7 +237,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
 
     image_list_updates = []
     for file in files_well:
-        new_zarr_url = convert_single_h5_to_ome(
+        new_zarr_urls = convert_single_h5_to_ome(
             zarr_url=zarr_url,
             input_file=file,
             level=level,
@@ -238,11 +246,13 @@ def convert_abbottlegacyh5_to_omezarr_compute(
             ome_zarr_parameters=ome_zarr_parameters,
             metadata=site_metadata,
             masking_label=masking_label,
+            overwrite=overwrite,
         )
 
-        logger.info(f"Succesfully converted {file} to {new_zarr_url}")
-        image_update = {"zarr_url": new_zarr_url, "types": {"is_3D": True}}
-        image_list_updates.append(image_update)
+        logger.info(f"Succesfully converted {file} to {new_zarr_urls}")
+        for new_zarr_url in new_zarr_urls:
+            image_update = {"zarr_url": new_zarr_url, "types": {"is_3D": True}}
+            image_list_updates.append(image_update)
 
     return {"image_list_updates": image_list_updates}
 
