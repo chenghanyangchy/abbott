@@ -79,6 +79,12 @@ def convert_single_h5_to_ome(
 
     # First extract the images from h5 file, then labels
     for c, acquisition in acquisitions.items():
+        # Extract the zarr URL for the current cycle and ROI
+        zarr_url_cycle_roi = f"{zarr_url}/{c}/{ROI}"
+        # Check if the zarr URL already exists
+        if not overwrite and Path(zarr_url_cycle_roi).exists():
+            logger.info(f"Skipping {zarr_url_cycle_roi} as it already exists.")
+            continue
         imgs_dict = {}
         channel_wavelengths = []
         for channel in acquisition.allowed_image_channels:
@@ -102,13 +108,6 @@ def convert_single_h5_to_ome(
 
         array = np.stack(list(imgs_dict.values()), axis=0)
         channel_labels = list(imgs_dict.keys())
-
-        # Save per cycle
-        zarr_url_cycle_roi = f"{zarr_url}/{c}/{ROI}"
-
-        if not overwrite and Path(zarr_url_cycle_roi).exists():
-            logger.info(f"Skipping {zarr_url_cycle_roi} as it already exists.")
-            continue
 
         ome_zarr_container = create_ome_zarr_from_array(
             store=zarr_url_cycle_roi,
@@ -228,6 +227,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
     files = init_args.input_files
     files_well = [file for file in files if init_args.well_ID in Path(file).stem]
 
+    # Get acquisition metadata
     site_metadata, _ = parse_yokogawa_metadata(
         mrf_path=init_args.mrf_path,
         mlf_path=init_args.mlf_path,
@@ -235,7 +235,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
 
     image_list_updates = []
     for file in files_well:
-        new_zarr_urls = convert_single_h5_to_ome(
+        zarr_url = convert_single_h5_to_ome(
             zarr_url=zarr_url,
             input_file=file,
             level=level,
@@ -247,10 +247,9 @@ def convert_abbottlegacyh5_to_omezarr_compute(
             overwrite=init_args.overwrite,
         )
 
-        logger.info(f"Succesfully converted {file} to {new_zarr_urls}")
-        for new_zarr_url in new_zarr_urls:
-            image_update = {"zarr_url": new_zarr_url, "types": {"is_3D": True}}
-            image_list_updates.append(image_update)
+    logger.info(f"Succesfully converted {files_well} to {zarr_url}")
+    image_update = {"zarr_url": zarr_url, "types": {"is_3D": True}}
+    image_list_updates.append(image_update)
 
     return {"image_list_updates": image_list_updates}
 
