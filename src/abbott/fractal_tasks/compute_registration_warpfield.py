@@ -15,7 +15,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import warpfield
 from fractal_tasks_core.tasks.io_models import InitArgsRegistration
 from ngio import open_ome_zarr_container
 from pydantic import validate_call
@@ -72,6 +71,13 @@ def compute_registration_warpfield(
             actually be processed (e.g. running within `embryo_ROI_table`).
         masking_label_name: Optional label for masking ROI e.g. `embryo`.
     """
+    try:
+        import warpfield
+    except ImportError as e:
+        raise ImportError(
+            "The `compute_registration_warpfield` task requires GPU. "
+        ) from e
+
     logger.info(
         f"Running for {zarr_url=}.\n"
         f"Calculating warpfield registration per {roi_table=} for "

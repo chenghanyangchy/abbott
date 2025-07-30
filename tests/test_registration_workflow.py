@@ -9,19 +9,21 @@ from abbott.fractal_tasks.apply_channel_registration_elastix import (
     apply_channel_registration_elastix,
 )
 from abbott.fractal_tasks.apply_registration_elastix import apply_registration_elastix
+
+# from abbott.fractal_tasks.apply_registration_warpfield import (
+#     apply_registration_warpfield,
+# )
 from abbott.fractal_tasks.compute_channel_registration_elastix import (
     compute_channel_registration_elastix,
 )
 from abbott.fractal_tasks.compute_registration_elastix import (
     compute_registration_elastix,
 )
-from abbott.fractal_tasks.init_registration_hcs import init_registration_hcs
 
 # from abbott.fractal_tasks.compute_registration_warpfield import (
 #     compute_registration_warpfield,
 # )
-# from abbott.fractal_tasks.apply_registration_warpfield import (
-#     apply_registration_warpfield,)
+from abbott.fractal_tasks.init_registration_hcs import init_registration_hcs
 
 
 @pytest.fixture(scope="function")
@@ -202,6 +204,7 @@ def test_registration_workflow_masked(test_data_dir):
 #         masking_label_name=None,
 #         overwrite_input=False,
 #     )
+
 
 # def test_registration_workflow_warpfield_masked(test_data_dir):
 #     # Task-specific arguments
