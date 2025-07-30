@@ -29,8 +29,8 @@ from pydantic import validate_call
 
 from abbott.fractal_tasks.converter.io_models import (
     AllowedH5Extensions,
+    ConverterMultiplexingAcquisition,
     InitArgsCellVoyagerH5toOMEZarr,
-    MultiplexingAcquisition,
 )
 from abbott.fractal_tasks.converter.task_utils import parse_filename
 
@@ -48,7 +48,7 @@ def convert_abbottlegacyh5_to_omezarr_init(
     zarr_dir: str,
     # Core parameters
     input_dir: str,
-    acquisitions: dict[str, MultiplexingAcquisition],
+    acquisitions: dict[str, ConverterMultiplexingAcquisition],
     # Advanced parameters
     include_glob_patterns: Optional[list[str]] = None,
     exclude_glob_patterns: Optional[list[str]] = None,
@@ -227,20 +227,21 @@ def convert_abbottlegacyh5_to_omezarr_init(
         )
 
     parallelization_list = []
-    for row, column in well_rows_columns:
-        parallelization_list.append(
-            {
-                "zarr_url": (f"{full_zarr_plate}/{row}/{column}/"),
-                "init_args": InitArgsCellVoyagerH5toOMEZarr(
-                    input_files=input_files,
-                    acquisitions=acquisitions,
-                    well_ID=f"{row}{column}",
-                    mrf_path=mrf_path,
-                    mlf_path=mlf_path,
-                    overwrite=overwrite,
-                ).model_dump(),
-            }
-        )
+    for acq in acquisitions_sorted:
+        for row, column in well_rows_columns:
+            parallelization_list.append(
+                {
+                    "zarr_url": (f"{full_zarr_plate}/{row}/{column}/{acq}"),
+                    "init_args": InitArgsCellVoyagerH5toOMEZarr(
+                        input_files=input_files,
+                        acquisition=acquisitions[acq],
+                        well_ID=f"{row}{column}",
+                        mrf_path=mrf_path,
+                        mlf_path=mlf_path,
+                        overwrite=overwrite,
+                    ).model_dump(),
+                }
+            )
 
     return dict(parallelization_list=parallelization_list)
 

@@ -53,7 +53,7 @@ from abbott.segmentation.io_models import (
 )
 from abbott.segmentation.segmentation_utils import (
     StardistCustomNormalizer,
-    _normalize_stardist_channel,
+    normalize_stardist_channel,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ def segment_ROI(
         f" x: {type(x)}, {x.shape} |"
         f" {normalization.norm_type=}"
     )
-    x = _normalize_stardist_channel(x, normalization)
+    x = normalize_stardist_channel(x, normalization)
 
     # make input 2D for stardist if not do_3D is True
     scale = advanced_stardist_model_params.scale

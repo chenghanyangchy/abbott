@@ -8,7 +8,7 @@
 # <exact-lab.it> under contract with Liberali Lab from the Friedrich Miescher
 # Institute for Biomedical Research and Pelkmans Lab from the University of
 # Zurich.
-"""This task converts abbott legacy H5 files to OME-Zarr."""
+"""This task converts abbott-legacy H5 files to OME-Zarr."""
 
 import logging
 from pathlib import Path
@@ -19,17 +19,20 @@ import pandas as pd
 from fractal_tasks_core.cellvoyager.metadata import (
     parse_yokogawa_metadata,
 )
-from ngio.images.ome_zarr_container import create_ome_zarr_from_array
+from ngio import RoiPixels
+from ngio.images.ome_zarr_container import create_empty_ome_zarr
+from ngio.tables import RoiTable
 from pydantic import Field, validate_call
 
 from abbott.fractal_tasks.converter.io_models import (
+    ConverterMultiplexingAcquisition,
+    ConverterOMEZarrBuilderParams,
     CustomWavelengthInputModel,
     InitArgsCellVoyagerH5toOMEZarr,
-    MultiplexingAcquisition,
-    OMEZarrBuilderParams,
 )
 from abbott.fractal_tasks.converter.task_utils import (
-    extract_zarr_url_from_h5_filename,
+    extract_cellvoyager_metadata,
+    find_shape,
     h5_load,
 )
 
@@ -38,11 +41,12 @@ logger = logging.getLogger(__name__)
 
 def convert_single_h5_to_ome(
     zarr_url: str,
-    input_file: str,
+    files_well: list[str],
     level: int,
-    acquisitions: dict[str, MultiplexingAcquisition],
+    acquisition_id: str,
+    acquisition_params: ConverterMultiplexingAcquisition,
     wavelengths: dict[int, str],
-    ome_zarr_parameters: OMEZarrBuilderParams,
+    ome_zarr_parameters: ConverterOMEZarrBuilderParams,
     metadata: pd.DataFrame,
     masking_label: Optional[str] = None,
     overwrite: bool = True,
@@ -52,130 +56,188 @@ def convert_single_h5_to_ome(
     Args:
         zarr_url: Output path to save the OME-Zarr file of the form
             `zarr_dir/plate_name/row/column/`.
-        input_file: Path to the H5 file to be converted.
+        files_well: Path to the H5 files per well to be converted.
         level: The level of the image to convert. Default is 0.
-        acquisitions: Dictionary of acquisitions. Each key is the acquisition
-            cycle. Each item defines the
-            acquisition by providing allowed image and label channels.
+        acquisition_id: The multiplexed acquisition cycle.
+        acquisition_params: Defines theacquisition by providing allowed
+            image and label channels.
         wavelengths: Dictionary mapping wavelength IDs to their OME-Zarr equivalents.
         ome_zarr_parameters: Parameters for the OME-Zarr builder.
         metadata: Metadata DataFrame containing site metadata.
         masking_label: Optional label for masking ROI e.g. `embryo`.
         overwrite: Whether to overwrite existing OME-Zarr data. Default is True.
     """
-    filename = Path(input_file).stem
-    logger.info(f"Converting {filename} to OME-Zarr at {zarr_url}")
+    logger.info(f"Converting {files_well} to OME-Zarr at {zarr_url}")
+    zarr_url = zarr_url.rstrip("/")
 
-    # Get metadata
-    levels = ome_zarr_parameters.number_multiscale
-    xy_scaling_factor = ome_zarr_parameters.xy_scaling_factor
-    z_scaling_factor = ome_zarr_parameters.z_scaling_factor
-
-    logger.info(f"Extracting zarr_url from metadata for filename {filename}")
-    ROI = extract_zarr_url_from_h5_filename(
-        h5_input_path=input_file,
-        metadata=metadata,
-    )
-
-    # First extract the images from h5 file, then labels
-    for c, acquisition in acquisitions.items():
-        # Extract the zarr URL for the current cycle and ROI
-        zarr_url_cycle_roi = f"{zarr_url}/{c}/{ROI}"
-        # Check if the zarr URL already exists
-        if not overwrite and Path(zarr_url_cycle_roi).exists():
-            logger.info(f"Skipping {zarr_url_cycle_roi} as it already exists.")
-            continue
+    # Start extracting image data from the H5 files
+    files_dict = {}
+    for file in files_well:
         imgs_dict = {}
         channel_wavelengths = []
-        for channel in acquisition.allowed_image_channels:
+        for channel in acquisition_params.allowed_image_channels:
             img, scale = h5_load(
-                input_path=input_file,
+                input_path=file,
                 channel=channel,
                 level=level,
-                cycle=int(c),
+                cycle=int(acquisition_id),
                 img_type="intensity",
             )
-            if img is not None:
-                channel_wavelengths.append(wavelengths[channel.wavelength_id])
+            channel_wavelengths.append(wavelengths[channel.wavelength_id])
+            channel_label = (
+                channel.new_label if channel.new_label is not None else channel.label
+            )
+            imgs_dict[channel_label] = img
+
+        # Check for label images
+        if acquisition_params.allowed_label_channels is not None:
+            lbls_dict = {}
+            for channel in acquisition_params.allowed_label_channels:
+                label_img, _ = h5_load(
+                    input_path=file,
+                    channel=channel,
+                    level=level,
+                    cycle=int(acquisition_id),
+                    img_type="label",
+                )
                 channel_label = (
                     channel.new_label
                     if channel.new_label is not None
                     else channel.label
                 )
-                xy_pixelsize = float(scale[1])
-                z_spacing = float(scale[0]) if len(scale) > 2 else 1
-                imgs_dict[channel_label] = img
+                lbls_dict[channel_label] = label_img
 
-        array = np.stack(list(imgs_dict.values()), axis=0)
-        channel_labels = list(imgs_dict.keys())
+            lbl_arrays = list(lbls_dict.values())
+            channel_lbl_labels = list(lbls_dict.keys())
 
-        ome_zarr_container = create_ome_zarr_from_array(
-            store=zarr_url_cycle_roi,
-            array=array,
-            xy_pixelsize=xy_pixelsize,
-            z_spacing=z_spacing,
-            levels=levels,
-            xy_scaling_factor=xy_scaling_factor,
-            z_scaling_factor=z_scaling_factor,
-            channel_labels=channel_labels,
-            channel_wavelengths=channel_wavelengths,
-            axes_names=["c", "z", "y", "x"],
-            overwrite=False,
+        # Extract metadata from the h5_file
+        pixel_sizes_zyx_dict = {"z": scale[0], "y": scale[1], "x": scale[2]}
+        FOV, top_left, bottom_right, origin = extract_cellvoyager_metadata(
+            metadata=metadata,
+            pixel_sizes_zyx_dict=pixel_sizes_zyx_dict,
+            h5_file=file,
         )
 
-        FOV_table = ome_zarr_container.build_image_roi_table(f"FOV_{ROI}")
-        ome_zarr_container.add_table("FOV_ROI_table", table=FOV_table, overwrite=True)
+        array = np.stack(list(imgs_dict.values()), axis=0)
+        shape = array.shape
+        channel_labels = list(imgs_dict.keys())
+        files_dict[FOV] = {
+            "array": array,
+            "lbl_array": lbl_arrays
+            if acquisition_params.allowed_label_channels
+            else None,
+            "channel_labels": channel_labels,
+            "channel_lbl_labels": channel_lbl_labels
+            if acquisition_params.allowed_label_channels
+            else None,
+            "channel_wavelengths": channel_wavelengths,
+            "shape": shape,
+            "top_left_coords": top_left,
+            "bottom_right_coords": bottom_right,
+            "origin": origin,
+        }
 
-        well_table = ome_zarr_container.build_image_roi_table("well_1")
-        ome_zarr_container.add_table("well_ROI_table", table=well_table, overwrite=True)
+    # Check that all files have the same shape, no channels are missing from files
+    shapes = [file_dict["shape"] for file_dict in files_dict.values()]
+    if len(set(shapes)) != 1:
+        raise ValueError(
+            f"All files for {files_well} and acquisition {acquisition_id} "
+            "must have the same shape. Check if channels are missing."
+        )
 
-        # Add label images if available
-        if acquisition.allowed_label_channels is not None:
-            for label_channel in acquisition.allowed_label_channels:
-                try:
-                    label_img, _ = h5_load(
-                        input_path=input_file,
-                        channel=label_channel,
-                        level=level,
-                        cycle=int(c),
-                        img_type="label",
-                    )
-                except RuntimeError as e:
-                    logger.error(
-                        f"Error loading label for channel {label_channel.label} "
-                        f"in cycle {c}: {e}"
-                        "Please check if the channel is present in the H5 file."
-                    )
-                label_name = (
-                    label_channel.new_label
-                    if label_channel.new_label is not None
-                    else label_channel.label
+    # Get on-disk shape
+    on_disk_shape = find_shape(
+        top_left=[file_dict["top_left_coords"] for file_dict in files_dict.values()],
+        bottom_right=[
+            file_dict["bottom_right_coords"] for file_dict in files_dict.values()
+        ],
+        array_shape=files_dict[FOV]["shape"],
+    )
+
+    # Create the empty OME-Zarr container
+    ome_zarr_container = create_empty_ome_zarr(
+        store=zarr_url,
+        shape=on_disk_shape,
+        xy_pixelsize=pixel_sizes_zyx_dict["x"],
+        z_spacing=pixel_sizes_zyx_dict["z"],
+        levels=ome_zarr_parameters.number_multiscale,
+        xy_scaling_factor=ome_zarr_parameters.xy_scaling_factor,
+        z_scaling_factor=ome_zarr_parameters.z_scaling_factor,
+        channel_labels=files_dict[FOV]["channel_labels"],
+        channel_wavelengths=files_dict[FOV]["channel_wavelengths"],
+        axes_names=("c", "z", "y", "x"),
+        overwrite=True,
+    )
+
+    # Create the well ROI
+    well_roi = ome_zarr_container.build_image_roi_table("Well")
+    ome_zarr_container.add_table("well_ROI_table", table=well_roi)
+
+    # Write the images as ROIs in the image
+    image = ome_zarr_container.get_image()
+    pixel_size = image.pixel_size
+
+    _fov_rois = []
+    for i, file_params in files_dict.items():
+        # Create the ROI for the file
+        # Load the whole file and set the data in the image
+        image_data = file_params["array"]
+        _, s_z, s_y, s_x = file_params["shape"]
+        roi_pix = RoiPixels(
+            name=f"FOV_{i}",
+            x=int(file_params["origin"].x_micrometer_original),
+            y=int(file_params["origin"].y_micrometer_original),
+            z=int(file_params["origin"].z_micrometer_original),
+            x_length=s_x,
+            y_length=s_y,
+            z_length=s_z,
+        )
+        roi = roi_pix.to_roi(pixel_size=pixel_size)
+        _fov_rois.append(roi)
+        image.set_roi(roi=roi, patch=image_data, axes_order=("c", "z", "y", "x"))
+
+    # Build pyramids
+    image.consolidate()
+    ome_zarr_container.set_channel_percentiles(start_percentile=1, end_percentile=99.9)
+    table = RoiTable(rois=_fov_rois)
+    ome_zarr_container.add_table("FOV_ROI_table", table=table)
+
+    # Set labels if available
+    if files_dict[FOV]["lbl_array"]:
+        roi_table = ome_zarr_container.get_table("FOV_ROI_table")
+        for i, channel_lbl in enumerate(files_dict[FOV]["channel_lbl_labels"]):
+            label = ome_zarr_container.derive_label(
+                name=channel_lbl, overwrite=overwrite
+            )
+            for roi in roi_table.rois():
+                roi_id = roi.name.split("_")[-1]
+                label_array_roi = files_dict[int(roi_id)]["lbl_array"][i]
+                label.set_roi(roi=roi, patch=label_array_roi)
+
+            label.consolidate()
+
+    # Build masking roi table if masking label is provided
+    if masking_label is not None:
+        channel_lbl_labels = files_dict[FOV]["channel_lbl_labels"]
+        if channel_lbl_labels is not None and masking_label in channel_lbl_labels:
+            try:
+                masking_roi_table = ome_zarr_container.build_masking_roi_table(
+                    masking_label
+                )
+                ome_zarr_container.add_table(
+                    f"{masking_label}_ROI_table",
+                    table=masking_roi_table,
+                )
+                logger.info(f"Built masking ROI table for label {masking_label}")
+            except Exception:
+                logger.warning(
+                    "Failed to build masking ROI table. "
+                    "This might be because the label is not present in the data. "
                 )
 
-                ome_zarr_container.derive_label(
-                    name=label_name,
-                ).set_array(label_img)
-
-                if masking_label is not None:
-                    try:
-                        masking_roi_table = ome_zarr_container.build_masking_roi_table(
-                            label=masking_label,
-                        )
-                        ome_zarr_container.add_table(
-                            f"{label_name}_ROI_table",
-                            table=masking_roi_table,
-                            overwrite=True,
-                        )
-
-                    except ValueError as e:
-                        logger.info(
-                            "Error building masking ROI table for label "
-                            f"{masking_label}: {e}"
-                            " Masking ROI will not be generated."
-                        )
-
-    logger.info(f"Created OME-Zarr container for {filename} at {zarr_url}")
-    return zarr_url
+    logger.info(f"Created OME-Zarr container for {files_well} at {zarr_url}")
+    im_list_types = {"is_3D": ome_zarr_container.is_3d}
+    return im_list_types
 
 
 @validate_call
@@ -190,8 +252,8 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         title="Wavelengths", default=CustomWavelengthInputModel()
     ),
     axes_names: str = "ZYX",
-    ome_zarr_parameters: OMEZarrBuilderParams = Field(
-        title="OME-Zarr Parameters", default=OMEZarrBuilderParams()
+    ome_zarr_parameters: ConverterOMEZarrBuilderParams = Field(
+        title="OME-Zarr Parameters", default=ConverterOMEZarrBuilderParams()
     ),
     masking_label: Optional[str] = None,
 ):
@@ -233,25 +295,25 @@ def convert_abbottlegacyh5_to_omezarr_compute(
         mlf_path=init_args.mlf_path,
     )
 
-    image_list_updates = []
-    for file in files_well:
-        zarr_url = convert_single_h5_to_ome(
-            zarr_url=zarr_url,
-            input_file=file,
-            level=level,
-            acquisitions=init_args.acquisitions,
-            wavelengths=wavelength_conversion_dict,
-            ome_zarr_parameters=ome_zarr_parameters,
-            metadata=site_metadata,
-            masking_label=masking_label,
-            overwrite=init_args.overwrite,
-        )
+    acquisition_id = Path(zarr_url).stem
+
+    im_list_types = convert_single_h5_to_ome(
+        zarr_url=zarr_url,
+        files_well=files_well,
+        level=level,
+        acquisition_id=acquisition_id,
+        acquisition_params=init_args.acquisition,
+        wavelengths=wavelength_conversion_dict,
+        ome_zarr_parameters=ome_zarr_parameters,
+        metadata=site_metadata,
+        masking_label=masking_label,
+        overwrite=init_args.overwrite,
+    )
 
     logger.info(f"Succesfully converted {files_well} to {zarr_url}")
-    image_update = {"zarr_url": zarr_url, "types": {"is_3D": True}}
-    image_list_updates.append(image_update)
+    image_update = {"zarr_url": zarr_url, "types": im_list_types}
 
-    return {"image_list_updates": image_list_updates}
+    return {"image_list_updates": [image_update]}
 
 
 if __name__ == "__main__":

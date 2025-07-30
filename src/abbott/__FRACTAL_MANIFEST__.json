@@ -132,7 +132,8 @@
         ],
         "type": "object",
         "title": "ComputeRegistrationElastix"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Apply Registration (elastix)",
@@ -203,7 +204,8 @@
         ],
         "type": "object",
         "title": "ApplyRegistrationElastix"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Compute Channel Registration (elastix)",
@@ -275,7 +277,8 @@
         ],
         "type": "object",
         "title": "ComputeChannelRegistrationElastix"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Apply Channel Registration (elastix)",
@@ -341,7 +344,8 @@
         ],
         "type": "object",
         "title": "ApplyChannelRegistrationElastix"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Convert Cellvoyager Multiplexing to existing OME-Zarr",
@@ -649,7 +653,8 @@
         ],
         "type": "object",
         "title": "CellvoyagerComputeOmezarr"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Stardist Segmentation",
@@ -929,7 +934,8 @@
         ],
         "type": "object",
         "title": "StardistSegmentation"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Seeded Watershed Segmentation",
@@ -1122,7 +1128,8 @@
         ],
         "type": "object",
         "title": "SeededSegmentation"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Upsample Label Image",
@@ -1191,7 +1198,8 @@
         ],
         "type": "object",
         "title": "UpsampleLabelImage"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     },
     {
       "name": "Convert abbott-legacy H5 to OME-Zarr",
@@ -1225,19 +1233,19 @@
             "title": "AllowedH5Extensions",
             "type": "string"
           },
-          "MultiplexingAcquisition": {
+          "ConverterMultiplexingAcquisition": {
             "description": "Input class for Multiplexing Cellvoyager converter",
             "properties": {
               "allowed_image_channels": {
                 "items": {
-                  "$ref": "#/$defs/OmeroChannel"
+                  "$ref": "#/$defs/ConverterOmeroChannel"
                 },
                 "title": "Allowed Image Channels",
                 "type": "array"
               },
               "allowed_label_channels": {
                 "items": {
-                  "$ref": "#/$defs/OmeroChannel"
+                  "$ref": "#/$defs/ConverterOmeroChannel"
                 },
                 "title": "Allowed Label Channels",
                 "type": "array"
@@ -1246,10 +1254,10 @@
             "required": [
               "allowed_image_channels"
             ],
-            "title": "MultiplexingAcquisition",
+            "title": "ConverterMultiplexingAcquisition",
             "type": "object"
           },
-          "OmeroChannel": {
+          "ConverterOmeroChannel": {
             "description": "Custom class for Omero channels, based on OME-NGFF v0.4.",
             "properties": {
               "wavelength_id": {
@@ -1272,7 +1280,7 @@
             "required": [
               "wavelength_id"
             ],
-            "title": "OmeroChannel",
+            "title": "ConverterOmeroChannel",
             "type": "object"
           }
         },
@@ -1290,7 +1298,7 @@
           },
           "acquisitions": {
             "additionalProperties": {
-              "$ref": "#/$defs/MultiplexingAcquisition"
+              "$ref": "#/$defs/ConverterMultiplexingAcquisition"
             },
             "title": "Acquisitions",
             "type": "object",
@@ -1357,78 +1365,19 @@
       },
       "args_schema_parallel": {
         "$defs": {
-          "CustomWavelengthInputModel": {
-            "description": "Input model for the custom wavelength conversions to be used in task.",
-            "properties": {
-              "wavelengths": {
-                "items": {
-                  "$ref": "#/$defs/WavelengthModel"
-                },
-                "title": "Wavelengths",
-                "type": "array"
-              }
-            },
-            "title": "CustomWavelengthInputModel",
-            "type": "object"
-          },
-          "InitArgsCellVoyagerH5toOMEZarr": {
-            "description": "Arguments to be passed from cellvoyager converter init to compute",
-            "properties": {
-              "input_files": {
-                "items": {
-                  "type": "string"
-                },
-                "title": "Input Files",
-                "type": "array"
-              },
-              "acquisitions": {
-                "additionalProperties": {
-                  "$ref": "#/$defs/MultiplexingAcquisition"
-                },
-                "title": "Acquisitions",
-                "type": "object"
-              },
-              "well_ID": {
-                "title": "Well Id",
-                "type": "string"
-              },
-              "mrf_path": {
-                "title": "Mrf Path",
-                "type": "string"
-              },
-              "mlf_path": {
-                "title": "Mlf Path",
-                "type": "string"
-              },
-              "overwrite": {
-                "title": "Overwrite",
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "input_files",
-              "acquisitions",
-              "well_ID",
-              "mrf_path",
-              "mlf_path",
-              "overwrite"
-            ],
-            "title": "InitArgsCellVoyagerH5toOMEZarr",
-            "type": "object"
-          },
-          "MultiplexingAcquisition": {
+          "ConverterMultiplexingAcquisition": {
             "description": "Input class for Multiplexing Cellvoyager converter",
             "properties": {
               "allowed_image_channels": {
                 "items": {
-                  "$ref": "#/$defs/OmeroChannel"
+                  "$ref": "#/$defs/ConverterOmeroChannel"
                 },
                 "title": "Allowed Image Channels",
                 "type": "array"
               },
               "allowed_label_channels": {
                 "items": {
-                  "$ref": "#/$defs/OmeroChannel"
+                  "$ref": "#/$defs/ConverterOmeroChannel"
                 },
                 "title": "Allowed Label Channels",
                 "type": "array"
@@ -1437,10 +1386,10 @@
             "required": [
               "allowed_image_channels"
             ],
-            "title": "MultiplexingAcquisition",
+            "title": "ConverterMultiplexingAcquisition",
             "type": "object"
           },
-          "OMEZarrBuilderParams": {
+          "ConverterOMEZarrBuilderParams": {
             "description": "Parameters for the OME-Zarr builder.",
             "properties": {
               "number_multiscale": {
@@ -1464,10 +1413,10 @@
                 "type": "integer"
               }
             },
-            "title": "OMEZarrBuilderParams",
+            "title": "ConverterOMEZarrBuilderParams",
             "type": "object"
           },
-          "OmeroChannel": {
+          "ConverterOmeroChannel": {
             "description": "Custom class for Omero channels, based on OME-NGFF v0.4.",
             "properties": {
               "wavelength_id": {
@@ -1490,10 +1439,10 @@
             "required": [
               "wavelength_id"
             ],
-            "title": "OmeroChannel",
+            "title": "ConverterOmeroChannel",
             "type": "object"
           },
-          "WavelengthModel": {
+          "ConverterWavelengthModel": {
             "description": "Input model for wavelength conversion.",
             "properties": {
               "wavelength_abbott_legacy": {
@@ -1509,7 +1458,63 @@
               "wavelength_abbott_legacy",
               "wavelength_omezarr"
             ],
-            "title": "WavelengthModel",
+            "title": "ConverterWavelengthModel",
+            "type": "object"
+          },
+          "CustomWavelengthInputModel": {
+            "description": "Input model for the custom wavelength conversions to be used in task.",
+            "properties": {
+              "wavelengths": {
+                "items": {
+                  "$ref": "#/$defs/ConverterWavelengthModel"
+                },
+                "title": "Wavelengths",
+                "type": "array"
+              }
+            },
+            "title": "CustomWavelengthInputModel",
+            "type": "object"
+          },
+          "InitArgsCellVoyagerH5toOMEZarr": {
+            "description": "Arguments to be passed from cellvoyager converter init to compute",
+            "properties": {
+              "input_files": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Input Files",
+                "type": "array"
+              },
+              "acquisition": {
+                "$ref": "#/$defs/ConverterMultiplexingAcquisition",
+                "title": "Acquisition"
+              },
+              "well_ID": {
+                "title": "Well Id",
+                "type": "string"
+              },
+              "mrf_path": {
+                "title": "Mrf Path",
+                "type": "string"
+              },
+              "mlf_path": {
+                "title": "Mlf Path",
+                "type": "string"
+              },
+              "overwrite": {
+                "title": "Overwrite",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "input_files",
+              "acquisition",
+              "well_ID",
+              "mrf_path",
+              "mlf_path",
+              "overwrite"
+            ],
+            "title": "InitArgsCellVoyagerH5toOMEZarr",
             "type": "object"
           }
         },
@@ -1569,7 +1574,7 @@
           "ome_zarr_parameters": {
             "allOf": [
               {
-                "$ref": "#/$defs/OMEZarrBuilderParams"
+                "$ref": "#/$defs/ConverterOMEZarrBuilderParams"
               }
             ],
             "default": {
@@ -1592,10 +1597,11 @@
         ],
         "type": "object",
         "title": "ConvertAbbottlegacyh5ToOmezarrCompute"
-      }
+      },
+      "docs_link": "https://github.com/pelkmanslab/abbott"
     }
   ],
   "has_args_schemas": true,
   "args_schema_version": "pydantic_v2",
-  "authors": null
+  "authors": "Ruth Hornbachner"
 }

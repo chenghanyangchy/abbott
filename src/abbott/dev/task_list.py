@@ -6,6 +6,33 @@ from fractal_task_tools.task_models import (
     ParallelTask,
 )
 
+AUTHORS = "Ruth Hornbachner"
+DOCS_LINK = "https://github.com/pelkmanslab/abbott"
+# INPUT_MODELS = [
+#     ["abbott", "fractal_tasks","converter/io_models.py",
+#      "AllowedH5Extensions"],
+#     ["abbott", "fractal_tasks","converter/io_models.py",
+#      "CustomWavelengthInputModel"],
+#     ["abbott", "fractal_tasks","converter/io_models.py",
+#      "InitArgsCellVoyagerH5toOMEZarr"],
+#     ["abbott", "fractal_tasks","converter/io_models.py",
+#      "ConverterMultiplexingAcquisition"],
+#     ["abbott", "fractal_tasks","converter/io_models.py",
+#      "ConverterOMEZarrBuilderParams"],
+#     ["abbott", "fractal_tasks","segmentation/io_models.py",
+#      "StardistChannelInputModel"],
+#     ["abbott", "fractal_tasks","segmentation/io_models.py",
+#      "StardistModelParams"],
+#     ["abbott", "fractal_tasks","segmentation/io_models.py",
+#      "StardistModels"],
+#     ["abbott", "fractal_tasks","segmentation/io_models.py",
+#      "StardistpretrainedModel"],
+#     ["abbott", "fractal_tasks","segmentation/io_models.py",
+#      "SeededSegmentationChannelInputModel"],
+#     ["abbott", "fractal_tasks","segmentation/io_models.py",
+#      "SeededSegmentationParams"],
+# ]
+
 TASK_LIST = [
     CompoundTask(
         name="Compute Registration (elastix)",

@@ -17,10 +17,12 @@ from typing import Optional
 
 import h5py
 import pandas as pd
+from ngio import PixelSize
 
 from abbott.fractal_tasks.converter.io_models import (
-    OmeroChannel,
+    ConverterOmeroChannel,
 )
+from abbott.fractal_tasks.converter.tile import OriginDict, Point
 
 logger = logging.getLogger(__name__)
 
@@ -66,38 +68,76 @@ def parse_filename(filename: str) -> dict[str, str]:
     return output
 
 
-def extract_zarr_url_from_h5_filename(
-    h5_input_path: str, metadata: pd.DataFrame
-) -> int:
-    """Extracts the Zarr URL from a given HDF5 filename.
+def extract_cellvoyager_metadata(
+    metadata: pd.DataFrame, pixel_sizes_zyx_dict: dict, h5_file: str
+) -> tuple[int, Point, Point, OriginDict]:
+    """Extract metadata (coords, ROI)
 
-    Args:
-        h5_input_path: The name of the HDF5 file.
-        metadata: A pandas DataFrame containing metadata with well IDs and coordinates.
-
-    Returns:
-        int: The ROI index extracted from the metadata.
+    from Cellvoyager metadata DataFrame from h5_file name.
     """
-    h5_filename = Path(h5_input_path).stem
+    agg_meta = metadata.groupby(["well_id", "FieldIndex"]).agg(list)
 
+    h5_filename = Path(h5_file).stem
     well_id, x, y = h5_filename.split("_")
-    # Split the well_id into row and column after first letter
-    x_micrometer = x.split("-")[1] if "-" in x else x.split("+")[1]  # split at - or +
-    y_micrometer = y.split("-")[1] if "-" in y else y.split("+")[1]  # split at - or +
+    x_micrometer_h5 = x.split("-")[1] if "-" in x else x.split("+")[1]
+    y_micrometer_h5 = y.split("-")[1] if "-" in y else y.split("+")[1]
 
-    metawell = metadata.loc[well_id].reset_index()
-    metawell = metawell[["FieldIndex", "x_micrometer", "y_micrometer"]]
-    metawell = metawell.map(lambda x: abs(round(float(x))))
-    filtered_metadata = metawell[
-        (metawell["x_micrometer"] == abs(round(float(x_micrometer))))
-        & (metawell["y_micrometer"] == abs(round(float(y_micrometer))))
-    ]
-    ROI = (
-        filtered_metadata["FieldIndex"].values[0]
-        if not filtered_metadata.empty
-        else None
+    agg_meta = agg_meta.loc[well_id].reset_index()
+    metawell = agg_meta.copy()
+    metawell["x_micrometer"] = metawell["x_micrometer"].apply(
+        lambda x: abs(round(float(x[0])))
     )
-    return int(ROI)
+    metawell["y_micrometer"] = metawell["y_micrometer"].apply(
+        lambda y: abs(round(float(y[0])))
+    )
+
+    metawell_roi = metawell[
+        (metawell["x_micrometer"] == abs(round(float(x_micrometer_h5))))
+        & (metawell["y_micrometer"] == abs(round(float(y_micrometer_h5))))
+    ]
+    if metawell_roi.empty:
+        raise ValueError(
+            f"No matching metadata found for {h5_filename=} "
+            "in the provided Cellvoyager metadata."
+        )
+
+    ROI = int(metawell_roi["FieldIndex"].values[0])
+    agg_meta = agg_meta[agg_meta["FieldIndex"] == ROI].reset_index(drop=True)
+
+    pixel_sizes = PixelSize(
+        x=pixel_sizes_zyx_dict.get("x", 1),
+        y=pixel_sizes_zyx_dict.get("y", 1),
+        z=pixel_sizes_zyx_dict.get("z", 1),
+    )
+
+    # Always extract the first element from list-valued columns
+    assert all(agg_meta.x_micrometer[0] == x for x in agg_meta.x_micrometer)
+    assert all(agg_meta.y_micrometer[0] == y for y in agg_meta.y_micrometer)
+    pos_x = int(round(agg_meta.x_micrometer[0][0] / pixel_sizes.x))
+    pos_y = int(round(agg_meta.y_micrometer[0][0] / pixel_sizes.y))
+    size_x = agg_meta.x_pixel[0][0]
+    size_y = agg_meta.y_pixel[0][0]
+
+    min_z = min(agg_meta.z_micrometer[0])
+    top_left = Point(
+        x=pos_x,
+        y=pos_y,
+        z=min_z,
+    )
+    max_z = max(agg_meta.z_micrometer[0])
+    bottom_right = Point(
+        x=pos_x + size_x,
+        y=pos_y + size_y,
+        z=(max_z + 1) * pixel_sizes.z,
+    )
+
+    origin = OriginDict(
+        x_micrometer_original=pos_x,
+        y_micrometer_original=pos_y,
+        z_micrometer_original=0,
+    )
+
+    return ROI, top_left, bottom_right, origin
 
 
 def h5_datasets(f: h5py.File, return_names=False, dsets=None) -> list[h5py.Dataset]:
@@ -159,7 +199,7 @@ def h5_select(
 
 def h5_load(
     input_path: str,
-    channel: OmeroChannel,
+    channel: ConverterOmeroChannel,
     level: int,
     cycle: int,
     img_type: str,
@@ -186,3 +226,14 @@ def h5_load(
 
         scale = dset.attrs["element_size_um"]
         return dset[:], scale
+
+
+def find_shape(
+    top_left: list[Point], bottom_right: list[Point], array_shape: tuple
+) -> tuple[int, int, int, int]:
+    """Find the shape of the image."""
+    shape_x = min(int(abs(top_l.x)) for top_l in top_left)
+    shape_y = max(int(abs(bot_r.y)) for bot_r in bottom_right)
+
+    shape_c, shape_z, *_ = array_shape
+    return shape_c, shape_z, shape_y, shape_x

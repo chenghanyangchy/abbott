@@ -16,7 +16,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 
-class OmeroChannel(BaseModel):
+class ConverterOmeroChannel(BaseModel):
     """Custom class for Omero channels, based on OME-NGFF v0.4.
 
     Attributes:
@@ -37,7 +37,7 @@ class OmeroChannel(BaseModel):
     new_label: str | None = None
 
 
-class MultiplexingAcquisition(BaseModel):
+class ConverterMultiplexingAcquisition(BaseModel):
     """Input class for Multiplexing Cellvoyager converter
 
     Attributes:
@@ -49,8 +49,8 @@ class MultiplexingAcquisition(BaseModel):
             `wavelength_id` values must be unique across the list.
     """
 
-    allowed_image_channels: list[OmeroChannel]
-    allowed_label_channels: list[OmeroChannel] | None = None
+    allowed_image_channels: list[ConverterOmeroChannel]
+    allowed_label_channels: list[ConverterOmeroChannel] | None = None
 
 
 class AllowedH5Extensions(str, Enum):
@@ -65,8 +65,8 @@ class InitArgsCellVoyagerH5toOMEZarr(BaseModel):
 
     Attributes:
         input_files: List of (filtered) input H5 files to be converted.
-        acquisitions: Dictionary of `MultiplexingAcquisition` objects
-            containing the cycle and channel information.
+        acquisitions: `MultiplexingAcquisition` object
+            containing the channel information.
         well_ID: part of the image filename needed for finding the
             right subset of image files
         mrf_path: Path to the MRF file for metadata extraction.
@@ -75,14 +75,14 @@ class InitArgsCellVoyagerH5toOMEZarr(BaseModel):
     """
 
     input_files: list[str]
-    acquisitions: dict[str, MultiplexingAcquisition]
+    acquisition: ConverterMultiplexingAcquisition
     well_ID: str
     mrf_path: str
     mlf_path: str
     overwrite: bool
 
 
-class WavelengthModel(BaseModel):
+class ConverterWavelengthModel(BaseModel):
     """Input model for wavelength conversion.
 
     Attributes:
@@ -101,10 +101,18 @@ class WavelengthModel(BaseModel):
 
 def _default_wavelength():
     return [
-        WavelengthModel(wavelength_abbott_legacy=405, wavelength_omezarr="A01_C01"),
-        WavelengthModel(wavelength_abbott_legacy=488, wavelength_omezarr="A02_C02"),
-        WavelengthModel(wavelength_abbott_legacy=561, wavelength_omezarr="A03_C03"),
-        WavelengthModel(wavelength_abbott_legacy=640, wavelength_omezarr="A04_C04"),
+        ConverterWavelengthModel(
+            wavelength_abbott_legacy=405, wavelength_omezarr="A01_C01"
+        ),
+        ConverterWavelengthModel(
+            wavelength_abbott_legacy=488, wavelength_omezarr="A02_C02"
+        ),
+        ConverterWavelengthModel(
+            wavelength_abbott_legacy=561, wavelength_omezarr="A03_C03"
+        ),
+        ConverterWavelengthModel(
+            wavelength_abbott_legacy=640, wavelength_omezarr="A04_C04"
+        ),
     ]
 
 
@@ -117,10 +125,12 @@ class CustomWavelengthInputModel(BaseModel):
             the OME-Zarr multiplexed naming conventions.
     """
 
-    wavelengths: list[WavelengthModel] = Field(default_factory=_default_wavelength)
+    wavelengths: list[ConverterWavelengthModel] = Field(
+        default_factory=_default_wavelength
+    )
 
 
-class OMEZarrBuilderParams(BaseModel):
+class ConverterOMEZarrBuilderParams(BaseModel):
     """Parameters for the OME-Zarr builder.
 
     Attributes:

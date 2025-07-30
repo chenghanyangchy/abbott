@@ -143,7 +143,7 @@ class StardistCustomNormalizer(BaseModel):
         return self
 
 
-def _normalize_stardist_channel(
+def normalize_stardist_channel(
     x: np.ndarray,
     normalization: StardistCustomNormalizer,
 ) -> np.ndarray:
