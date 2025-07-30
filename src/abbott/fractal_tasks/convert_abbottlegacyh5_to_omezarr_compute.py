@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
+import dask.array as da
 import pandas as pd
 from fractal_tasks_core.cellvoyager.metadata import (
     parse_yokogawa_metadata,
@@ -72,11 +72,12 @@ def convert_single_h5_to_ome(
 
     # Start extracting image data from the H5 files
     files_dict = {}
+    h5_handles = []
     for file in files_well:
         imgs_dict = {}
         channel_wavelengths = []
         for channel in acquisition_params.allowed_image_channels:
-            img, scale = h5_load(
+            img, scale, h5_handle = h5_load(
                 input_path=file,
                 channel=channel,
                 level=level,
@@ -93,12 +94,13 @@ def convert_single_h5_to_ome(
         if acquisition_params.allowed_label_channels is not None:
             lbls_dict = {}
             for channel in acquisition_params.allowed_label_channels:
-                label_img, _ = h5_load(
+                label_img, _, _ = h5_load(
                     input_path=file,
                     channel=channel,
                     level=level,
                     cycle=int(acquisition_id),
                     img_type="label",
+                    h5_handle=h5_handle,
                 )
                 channel_label = (
                     channel.new_label
@@ -118,7 +120,7 @@ def convert_single_h5_to_ome(
             h5_file=file,
         )
 
-        array = np.stack(list(imgs_dict.values()), axis=0)
+        array = da.stack(list(imgs_dict.values()), axis=0)
         shape = array.shape
         channel_labels = list(imgs_dict.keys())
         files_dict[FOV] = {
@@ -215,6 +217,9 @@ def convert_single_h5_to_ome(
                 label.set_roi(roi=roi, patch=label_array_roi)
 
             label.consolidate()
+
+    for h5_handle in h5_handles:
+        h5_handle.close()
 
     # Build masking roi table if masking label is provided
     if masking_label is not None:

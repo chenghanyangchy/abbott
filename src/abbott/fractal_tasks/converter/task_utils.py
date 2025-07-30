@@ -15,6 +15,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import dask.array as da
 import h5py
 import pandas as pd
 from ngio import PixelSize
@@ -164,7 +165,7 @@ def h5_select(
     not_attrs_select: Optional[dict[str, str | int | tuple[str | int, ...]]] = None,
     return_names: bool = False,
 ) -> h5py.Dataset:
-    """Select a dataset from an HDF5 file based on attributes."""
+    """Select a dataset (lazily) from an HDF5 file based on attributes."""
     dsets: list[h5py.Dataset] = []
     for dset in h5_datasets(f):
         check: list[bool] = []
@@ -197,35 +198,73 @@ def h5_select(
     return dsets[0] if dsets else None
 
 
+# def h5_load(
+#     input_path: str,
+#     channel: ConverterOmeroChannel,
+#     level: int,
+#     cycle: int,
+#     img_type: str,
+# ):
+#     """Load a dataset from an HDF5 file based on metadata."""
+#     with h5py.File(input_path, "r") as f:
+#         dset = h5_select(
+#             f=f,
+#             attrs_select={
+#                 "img_type": img_type,
+#                 "cycle": cycle,
+#                 "stain": channel.label,
+#                 "level": level,
+#             },
+#         )
+#         # Check if only one dataset is returned
+#         if dset is None:
+#             logger.warning(
+#                 f"Dataset not found for channel {channel.label}, "
+#                 f"wavelength {channel.wavelength_id}, cycle {cycle}, "
+#                 f"level {level}, img_type {img_type}."
+#             )
+#             return None, []
+
+#         scale = dset.attrs["element_size_um"]
+#         # Load lazily using Dask
+#         arr = da.from_array(dset)
+#         return arr, scale
+
+
 def h5_load(
     input_path: str,
     channel: ConverterOmeroChannel,
     level: int,
     cycle: int,
     img_type: str,
+    h5_handle: Optional[h5py.File] = None,
 ):
     """Load a dataset from an HDF5 file based on metadata."""
-    with h5py.File(input_path, "r") as f:
-        dset = h5_select(
-            f=f,
-            attrs_select={
-                "img_type": img_type,
-                "cycle": cycle,
-                "stain": channel.label,
-                "level": level,
-            },
+    if h5_handle is not None:
+        f = h5_handle
+    else:
+        f = h5py.File(input_path, "r")
+    dset = h5_select(
+        f=f,
+        attrs_select={
+            "img_type": img_type,
+            "cycle": cycle,
+            "stain": channel.label,
+            "level": level,
+        },
+    )
+    if dset is None:
+        logger.warning(
+            f"Dataset not found for channel {channel.label}, "
+            f"wavelength {channel.wavelength_id}, cycle {cycle}, "
+            f"level {level}, img_type {img_type}."
         )
-        # Check if only one dataset is returned
-        if dset is None:
-            logger.warning(
-                f"Dataset not found for channel {channel.label}, "
-                f"wavelength {channel.wavelength_id}, cycle {cycle}, "
-                f"level {level}, img_type {img_type}."
-            )
-            return None, []
+        f.close()
+        return None, []
 
-        scale = dset.attrs["element_size_um"]
-        return dset[:], scale
+    scale = dset.attrs["element_size_um"]
+    arr = da.from_array(dset, chunks="auto")
+    return arr, scale, f  # Return the file handle to close it later
 
 
 def find_shape(
