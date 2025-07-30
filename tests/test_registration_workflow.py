@@ -9,19 +9,19 @@ from abbott.fractal_tasks.apply_channel_registration_elastix import (
     apply_channel_registration_elastix,
 )
 from abbott.fractal_tasks.apply_registration_elastix import apply_registration_elastix
+from abbott.fractal_tasks.apply_registration_warpfield import (
+    apply_registration_warpfield,
+)
 from abbott.fractal_tasks.compute_channel_registration_elastix import (
     compute_channel_registration_elastix,
 )
 from abbott.fractal_tasks.compute_registration_elastix import (
     compute_registration_elastix,
 )
+from abbott.fractal_tasks.compute_registration_warpfield import (
+    compute_registration_warpfield,
+)
 from abbott.fractal_tasks.init_registration_hcs import init_registration_hcs
-
-# from abbott.fractal_tasks.compute_registration_warpfield import (
-#     compute_registration_warpfield,
-# )
-# from abbott.fractal_tasks.apply_registration_warpfield import (
-#     apply_registration_warpfield,)
 
 
 @pytest.fixture(scope="function")
@@ -165,82 +165,83 @@ def test_registration_workflow_masked(test_data_dir):
     )
 
 
-# def test_registration_workflow_warpfield(test_data_dir):
-#     # Task-specific arguments
-#     wavelength_id = "A01_C01"
-#     roi_table = "FOV_ROI_table"
-#     level = 0
-#     reference_acquisition = 2
-#     path_to_registration_recipe = str(Path(__file__).parent / "data/default.yml")
-#     zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
+def test_registration_workflow_warpfield(test_data_dir):
+    # Task-specific arguments
+    wavelength_id = "A01_C01"
+    roi_table = "FOV_ROI_table"
+    level = 0
+    reference_acquisition = 2
+    path_to_registration_recipe = str(Path(__file__).parent / "data/default.yml")
+    zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
 
-#     parallelization_list = init_registration_hcs(
-#         zarr_urls=zarr_urls,
-#         zarr_dir="",
-#         reference_acquisition=reference_acquisition,
-#     )["parallelization_list"]
+    parallelization_list = init_registration_hcs(
+        zarr_urls=zarr_urls,
+        zarr_dir="",
+        reference_acquisition=reference_acquisition,
+    )["parallelization_list"]
 
-#     for param in parallelization_list:
-#         compute_registration_warpfield(
-#             zarr_url=param["zarr_url"],
-#             init_args=param["init_args"],
-#             wavelength_id=wavelength_id,
-#             path_to_registration_recipe=path_to_registration_recipe,
-#             roi_table=roi_table,
-#             use_masks=False,
-#             masking_label_name=None,
-#             level=level,
-#         )
+    for param in parallelization_list:
+        compute_registration_warpfield(
+            zarr_url=param["zarr_url"],
+            init_args=param["init_args"],
+            wavelength_id=wavelength_id,
+            path_to_registration_recipe=path_to_registration_recipe,
+            roi_table=roi_table,
+            use_masks=False,
+            masking_label_name=None,
+            level=level,
+        )
 
-#     # Test zarr_url that needs to be registered
-#     apply_registration_warpfield(
-#         zarr_url=zarr_urls[1],
-#         roi_table=roi_table,
-#         reference_acquisition=reference_acquisition,
-#         output_image_suffix="registered",
-#         use_masks=False,
-#         masking_label_name=None,
-#         overwrite_input=False,
-#     )
+    # Test zarr_url that needs to be registered
+    apply_registration_warpfield(
+        zarr_url=zarr_urls[1],
+        roi_table=roi_table,
+        reference_acquisition=reference_acquisition,
+        output_image_suffix="registered",
+        use_masks=False,
+        masking_label_name=None,
+        overwrite_input=False,
+    )
 
-# def test_registration_workflow_warpfield_masked(test_data_dir):
-#     # Task-specific arguments
-#     wavelength_id = "A01_C01"
-#     label_name = "emb_linked"
-#     roi_table = "emb_ROI_table_2_linked"
-#     level = 0
-#     reference_acquisition = 2
-#     path_to_registration_recipe = str(Path(__file__).parent / "data/default.yml")
-#     zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
 
-#     parallelization_list = init_registration_hcs(
-#         zarr_urls=zarr_urls,
-#         zarr_dir="",
-#         reference_acquisition=reference_acquisition,
-#     )["parallelization_list"]
+def test_registration_workflow_warpfield_masked(test_data_dir):
+    # Task-specific arguments
+    wavelength_id = "A01_C01"
+    label_name = "emb_linked"
+    roi_table = "emb_ROI_table_2_linked"
+    level = 0
+    reference_acquisition = 2
+    path_to_registration_recipe = str(Path(__file__).parent / "data/default.yml")
+    zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
 
-#     for param in parallelization_list:
-#         compute_registration_warpfield(
-#             zarr_url=param["zarr_url"],
-#             init_args=param["init_args"],
-#             wavelength_id=wavelength_id,
-#             path_to_registration_recipe=path_to_registration_recipe,
-#             roi_table=roi_table,
-#             use_masks=True,
-#             masking_label_name=label_name,
-#             level=level,
-#         )
+    parallelization_list = init_registration_hcs(
+        zarr_urls=zarr_urls,
+        zarr_dir="",
+        reference_acquisition=reference_acquisition,
+    )["parallelization_list"]
 
-#     # Test zarr_url that needs to be registered
-#     apply_registration_warpfield(
-#         zarr_url=zarr_urls[1],
-#         roi_table=roi_table,
-#         reference_acquisition=reference_acquisition,
-#         output_image_suffix="registered_masked",
-#         use_masks=True,
-#         masking_label_name=label_name,
-#         overwrite_input=False,
-#     )
+    for param in parallelization_list:
+        compute_registration_warpfield(
+            zarr_url=param["zarr_url"],
+            init_args=param["init_args"],
+            wavelength_id=wavelength_id,
+            path_to_registration_recipe=path_to_registration_recipe,
+            roi_table=roi_table,
+            use_masks=True,
+            masking_label_name=label_name,
+            level=level,
+        )
+
+    # Test zarr_url that needs to be registered
+    apply_registration_warpfield(
+        zarr_url=zarr_urls[1],
+        roi_table=roi_table,
+        reference_acquisition=reference_acquisition,
+        output_image_suffix="registered_masked",
+        use_masks=True,
+        masking_label_name=label_name,
+        overwrite_input=False,
+    )
 
 
 def test_channel_registration_workflow(test_data_dir):
