@@ -35,6 +35,8 @@ dependencies = [
     "h5py", 
     "ngio",
     "scikit-image",
+    "contourpy<1.3.3", #C++ compiler error 
+    "optree<0.17.0", #C++ compiler error 
     "fsspec",
     "pyarrow<15.0.0",
     "warpfield",
