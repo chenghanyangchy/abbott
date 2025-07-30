@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import warpfield
 from fractal_tasks_core.tasks._zarr_utils import (
     _get_matching_ref_acquisition_path_heuristic,
     _update_well_metadata,
@@ -262,6 +261,13 @@ def write_registered_zarr(
         masking_label_name: Name of the label that will be used for masking.
 
     """
+    try:
+        import warpfield
+    except ImportError as e:
+        raise ImportError(
+            "The `apply_registration_warpfield` task requires GPU. "
+        ) from e
+
     # Get reference OME-Zarr container and images
     ome_zarr_ref = open_ome_zarr_container(reference_zarr_url)
 
