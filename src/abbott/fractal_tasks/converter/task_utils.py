@@ -129,7 +129,7 @@ def extract_cellvoyager_metadata(
     bottom_right = Point(
         x=pos_x + size_x,
         y=pos_y + size_y,
-        z=(max_z + 1) * pixel_sizes.z,
+        z=(max_z + 1),
     )
 
     origin = OriginDict(
@@ -198,39 +198,6 @@ def h5_select(
     return dsets[0] if dsets else None
 
 
-# def h5_load(
-#     input_path: str,
-#     channel: ConverterOmeroChannel,
-#     level: int,
-#     cycle: int,
-#     img_type: str,
-# ):
-#     """Load a dataset from an HDF5 file based on metadata."""
-#     with h5py.File(input_path, "r") as f:
-#         dset = h5_select(
-#             f=f,
-#             attrs_select={
-#                 "img_type": img_type,
-#                 "cycle": cycle,
-#                 "stain": channel.label,
-#                 "level": level,
-#             },
-#         )
-#         # Check if only one dataset is returned
-#         if dset is None:
-#             logger.warning(
-#                 f"Dataset not found for channel {channel.label}, "
-#                 f"wavelength {channel.wavelength_id}, cycle {cycle}, "
-#                 f"level {level}, img_type {img_type}."
-#             )
-#             return None, []
-
-#         scale = dset.attrs["element_size_um"]
-#         # Load lazily using Dask
-#         arr = da.from_array(dset)
-#         return arr, scale
-
-
 def h5_load(
     input_path: str,
     channel: ConverterOmeroChannel,
@@ -263,16 +230,40 @@ def h5_load(
         return None, []
 
     scale = dset.attrs["element_size_um"]
-    arr = da.from_array(dset, chunks="auto")
+    # Load lazily using Dask
+    arr = da.from_array(dset)
     return arr, scale, f  # Return the file handle to close it later
 
 
 def find_shape(
-    top_left: list[Point], bottom_right: list[Point], array_shape: tuple
+    bottom_right: list[Point], dask_imgs: list[da.Array]
 ) -> tuple[int, int, int, int]:
     """Find the shape of the image."""
-    shape_x = min(int(abs(top_l.x)) for top_l in top_left)
-    shape_y = max(int(abs(bot_r.y)) for bot_r in bottom_right)
+    max_r_x = max(bot_r.x for bot_r in bottom_right)
+    max_r_y = max(bot_r.y for bot_r in bottom_right)
 
-    shape_c, shape_z, *_ = array_shape
+    shape_x = int(max_r_x)
+    shape_y = int(max_r_y)
+
+    shape_c, shape_z, *_ = dask_imgs[0].shape
     return shape_c, shape_z, shape_y, shape_x
+
+
+def find_chunk_shape(
+    dask_imgs: list[da.Array],
+    max_xy_chunk: int = 4096,
+    z_chunk: int = 1,
+    c_chunk: int = 1,
+) -> tuple[int, int, int, int]:
+    """Find the chunk shape of the image."""
+    shape_c, shape_z, shape_y, shape_x = dask_imgs[0].shape
+    chunk_y = min(shape_y, max_xy_chunk)
+    chunk_x = min(shape_x, max_xy_chunk)
+    chunk_z = min(shape_z, z_chunk)
+    chunk_c = min(shape_c, c_chunk)
+    return chunk_c, chunk_z, chunk_y, chunk_x
+
+
+def find_dtype(dask_imgs: list[da.Array]) -> str:
+    """Find the dtype of the image."""
+    return dask_imgs[0].dtype

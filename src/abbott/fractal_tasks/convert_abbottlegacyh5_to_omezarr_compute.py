@@ -32,6 +32,8 @@ from abbott.fractal_tasks.converter.io_models import (
 )
 from abbott.fractal_tasks.converter.task_utils import (
     extract_cellvoyager_metadata,
+    find_chunk_shape,
+    find_dtype,
     find_shape,
     h5_load,
 )
@@ -149,17 +151,34 @@ def convert_single_h5_to_ome(
 
     # Get on-disk shape
     on_disk_shape = find_shape(
-        top_left=[file_dict["top_left_coords"] for file_dict in files_dict.values()],
         bottom_right=[
             file_dict["bottom_right_coords"] for file_dict in files_dict.values()
         ],
-        array_shape=files_dict[FOV]["shape"],
+        dask_imgs=[file_dict["array"] for file_dict in files_dict.values()],
+    )
+
+    # Get chunk shape
+    chunk_shape = find_chunk_shape(
+        dask_imgs=[file_dict["array"] for file_dict in files_dict.values()],
+        max_xy_chunk=ome_zarr_parameters.max_xy_chunk,
+        z_chunk=ome_zarr_parameters.z_chunk,
+        c_chunk=ome_zarr_parameters.c_chunk,
+    )
+
+    # Chunk shape should be smaller or equal to the on disk shape
+    chunk_shape = tuple(
+        min(c, s) for c, s in zip(chunk_shape, on_disk_shape, strict=True)
+    )
+    img_dtype = find_dtype(
+        dask_imgs=[file_dict["array"] for file_dict in files_dict.values()]
     )
 
     # Create the empty OME-Zarr container
     ome_zarr_container = create_empty_ome_zarr(
         store=zarr_url,
         shape=on_disk_shape,
+        chunks=chunk_shape,
+        dtype=img_dtype,
         xy_pixelsize=pixel_sizes_zyx_dict["x"],
         z_spacing=pixel_sizes_zyx_dict["z"],
         levels=ome_zarr_parameters.number_multiscale,
@@ -187,9 +206,9 @@ def convert_single_h5_to_ome(
         _, s_z, s_y, s_x = file_params["shape"]
         roi_pix = RoiPixels(
             name=f"FOV_{i}",
-            x=int(file_params["origin"].x_micrometer_original),
-            y=int(file_params["origin"].y_micrometer_original),
-            z=int(file_params["origin"].z_micrometer_original),
+            x=int(file_params["top_left_coords"].x),
+            y=int(file_params["top_left_coords"].y),
+            z=int(file_params["top_left_coords"].z),
             x_length=s_x,
             y_length=s_y,
             z_length=s_z,
@@ -214,7 +233,9 @@ def convert_single_h5_to_ome(
             for roi in roi_table.rois():
                 roi_id = roi.name.split("_")[-1]
                 label_array_roi = files_dict[int(roi_id)]["lbl_array"][i]
-                label.set_roi(roi=roi, patch=label_array_roi)
+                label.set_roi(
+                    roi=roi, patch=label_array_roi, axes_order=("z", "y", "x")
+                )
 
             label.consolidate()
 
