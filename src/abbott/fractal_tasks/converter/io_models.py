@@ -140,9 +140,10 @@ class ConverterOMEZarrBuilderParams(BaseModel):
             Default is 2, meaning every layer is half the size over XY.
         z_scaling_factor: The factor to downsample the Z plane.
             Default is 1, no scaling on Z.
-        create_all_ome_axis: Whether to create all OME axis.
-            Default is True, meaning that missing axis will be created
-            with a singleton dimension.
+        max_xy_chunk: The maximum size of the XY chunk.
+        z_chunk: The size of the Z chunk.
+        c_chunk: The size of the C chunk.
+
     """
 
     number_multiscale: int = Field(default=4, ge=0)
@@ -153,3 +154,6 @@ class ConverterOMEZarrBuilderParams(BaseModel):
         title="Scaling Factor xy",
     )
     z_scaling_factor: int = Field(default=1, ge=1, le=10)
+    max_xy_chunk: int = Field(default=4096, ge=1)
+    z_chunk: int = Field(default=10, ge=1)
+    c_chunk: int = Field(default=1, ge=1)

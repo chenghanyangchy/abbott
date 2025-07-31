@@ -51,12 +51,14 @@ def sample_h5_file_3d(tmp_path: Path):
     tmp_path = Path(tmp_path) / "data"
     tmp_path.mkdir(parents=True, exist_ok=True)
     h5_file_path_1 = tmp_path / "B02_px-1229_py-0112.h5"
-    h5_file_path_2 = tmp_path / "B02_px-2514_py+0114.h5"
-    random_image_c0 = np.random.randint(0, 50, (2, 2000, 2000))
-    random_image_c1 = np.random.randint(0, 50, (2, 2000, 2000))
-    random_label_c0 = np.zeros((2, 2000, 2000), dtype=np.int32)
-    random_label_c0[:, 100:900, 100:900] = 1
-    random_label_c0[:, 1100:1900, 1100:1900] = 2
+    h5_file_path_2 = tmp_path / "B02_px+1586_py-1539.h5"
+    random_image_c0 = np.random.randint(0, 3, (15, 2000, 2000))
+    random_image_c1 = np.random.randint(0, 3, (15, 2000, 2000))
+    random_label_c0_file_1 = np.zeros((15, 2000, 2000), dtype=np.int32)
+    random_label_c0_file_1[:, 100:900, 100:900] = 1
+    random_label_c0_file_1[:, 1100:1900, 1100:1900] = 2
+    random_label_c0_file_2 = np.zeros((15, 2000, 2000), dtype=np.int32)
+    random_label_c0_file_2[:, 100:900, 100:900] = 3
 
     with h5py.File(h5_file_path_1, "w") as f:
         create_h5(
@@ -78,7 +80,7 @@ def sample_h5_file_3d(tmp_path: Path):
         create_h5(
             f,
             dset_name="nuclei/0",
-            data=random_label_c0,
+            data=random_label_c0_file_1,
             stain="nuclei",
             cycle=0,
             wavelength=405,
@@ -105,7 +107,7 @@ def sample_h5_file_3d(tmp_path: Path):
         create_h5(
             f,
             dset_name="nuclei/0",
-            data=random_label_c0,
+            data=random_label_c0_file_2,
             stain="nuclei",
             cycle=0,
             wavelength=405,
@@ -172,7 +174,6 @@ def test_full_workflow_3D(sample_h5_file_3d: list[Path], tmp_path: Path):
         overwrite=True,
     )["parallelization_list"]
 
-    print(parallelization_list)
     for image in parallelization_list:
         image_list_update = convert_abbottlegacyh5_to_omezarr_compute(
             zarr_url=image["zarr_url"],

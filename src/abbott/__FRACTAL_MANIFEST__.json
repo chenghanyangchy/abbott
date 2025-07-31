@@ -1601,6 +1601,24 @@
                 "minimum": 1,
                 "title": "Z Scaling Factor",
                 "type": "integer"
+              },
+              "max_xy_chunk": {
+                "default": 4096,
+                "minimum": 1,
+                "title": "Max Xy Chunk",
+                "type": "integer"
+              },
+              "z_chunk": {
+                "default": 10,
+                "minimum": 1,
+                "title": "Z Chunk",
+                "type": "integer"
+              },
+              "c_chunk": {
+                "default": 1,
+                "minimum": 1,
+                "title": "C Chunk",
+                "type": "integer"
               }
             },
             "title": "ConverterOMEZarrBuilderParams",
@@ -1770,7 +1788,10 @@
             "default": {
               "number_multiscale": 4,
               "xy_scaling_factor": 2,
-              "z_scaling_factor": 1
+              "z_scaling_factor": 1,
+              "max_xy_chunk": 4096,
+              "z_chunk": 10,
+              "c_chunk": 1
             },
             "title": "Ome Zarr Parameters",
             "description": "Parameters for the OME-Zarr builder."
