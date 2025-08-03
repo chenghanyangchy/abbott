@@ -171,7 +171,7 @@ def test_full_workflow_3D(sample_h5_file_3d: list[Path], tmp_path: Path):
         h5_extension=AllowedH5Extensions.H5,
         mrf_path=str(Path(__file__).parent / "data/MeasurementDetail.mrf"),
         mlf_path=str(Path(__file__).parent / "data/MeasurementData.mlf"),
-        overwrite=True,
+        overwrite=False,
     )["parallelization_list"]
 
     for image in parallelization_list:

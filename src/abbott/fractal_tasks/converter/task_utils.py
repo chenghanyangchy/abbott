@@ -221,13 +221,11 @@ def h5_load(
         },
     )
     if dset is None:
-        logger.warning(
+        raise FileNotFoundError(
             f"Dataset not found for channel {channel.label}, "
             f"wavelength {channel.wavelength_id}, cycle {cycle}, "
             f"level {level}, img_type {img_type}."
         )
-        f.close()
-        return None, []
 
     scale = dset.attrs["element_size_um"]
     # Load lazily using Dask
