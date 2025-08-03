@@ -19,9 +19,10 @@ import pandas as pd
 from fractal_tasks_core.cellvoyager.metadata import (
     parse_yokogawa_metadata,
 )
-from ngio import RoiPixels
+from ngio import RoiPixels, open_ome_zarr_container
 from ngio.images.ome_zarr_container import create_empty_ome_zarr
 from ngio.tables import RoiTable
+from ngio.utils._errors import NgioFileExistsError
 from pydantic import Field, validate_call
 
 from abbott.fractal_tasks.converter.io_models import (
@@ -122,7 +123,13 @@ def convert_single_h5_to_ome(
             h5_file=file,
         )
 
-        array = da.stack(list(imgs_dict.values()), axis=0)
+        # Handle single and multi channel images
+        img_arrays = list(imgs_dict.values())
+        if len(img_arrays) == 1:
+            array = da.expand_dims(img_arrays[0], axis=0)
+        else:
+            array = da.stack(img_arrays, axis=0)
+
         shape = array.shape
         channel_labels = list(imgs_dict.keys())
         files_dict[FOV] = {
@@ -173,22 +180,32 @@ def convert_single_h5_to_ome(
         dask_imgs=[file_dict["array"] for file_dict in files_dict.values()]
     )
 
-    # Create the empty OME-Zarr container
-    ome_zarr_container = create_empty_ome_zarr(
-        store=zarr_url,
-        shape=on_disk_shape,
-        chunks=chunk_shape,
-        dtype=img_dtype,
-        xy_pixelsize=pixel_sizes_zyx_dict["x"],
-        z_spacing=pixel_sizes_zyx_dict["z"],
-        levels=ome_zarr_parameters.number_multiscale,
-        xy_scaling_factor=ome_zarr_parameters.xy_scaling_factor,
-        z_scaling_factor=ome_zarr_parameters.z_scaling_factor,
-        channel_labels=files_dict[FOV]["channel_labels"],
-        channel_wavelengths=files_dict[FOV]["channel_wavelengths"],
-        axes_names=("c", "z", "y", "x"),
-        overwrite=True,
-    )
+    # Try creating the empty OME-Zarr container
+    try:
+        ome_zarr_container = create_empty_ome_zarr(
+            store=zarr_url,
+            shape=on_disk_shape,
+            chunks=chunk_shape,
+            dtype=img_dtype,
+            xy_pixelsize=pixel_sizes_zyx_dict["x"],
+            z_spacing=pixel_sizes_zyx_dict["z"],
+            levels=ome_zarr_parameters.number_multiscale,
+            xy_scaling_factor=ome_zarr_parameters.xy_scaling_factor,
+            z_scaling_factor=ome_zarr_parameters.z_scaling_factor,
+            channel_labels=files_dict[FOV]["channel_labels"],
+            channel_wavelengths=files_dict[FOV]["channel_wavelengths"],
+            axes_names=("c", "z", "y", "x"),
+            overwrite=overwrite,
+        )
+
+    except NgioFileExistsError:
+        logger.info(
+            f"OME-Zarr group already exists at {zarr_url}. "
+            "If you want to overwrite it, set `overwrite=True`."
+        )
+        ome_zarr_container = open_ome_zarr_container(zarr_url)
+        im_list_types = {"is_3D": ome_zarr_container.is_3d}
+        return im_list_types
 
     # Create the well ROI
     well_roi = ome_zarr_container.build_image_roi_table("Well")
