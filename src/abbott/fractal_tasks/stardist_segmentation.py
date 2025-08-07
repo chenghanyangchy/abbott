@@ -16,6 +16,7 @@
 import logging
 import os
 import time
+from random import uniform
 from typing import Optional
 
 import anndata as ad
@@ -393,25 +394,37 @@ def stardist_segmentation(
     )
 
     # Initialize stardist
-    # gpu = advanced_stardistmodel_params.use_gpu
-    if pretrained_model:
-        if do_3D:
-            model = StarDist3D(
-                None,
-                name=pretrained_model.pretrained_model_name,
-                basedir=pretrained_model.base_fld,
+    # Fixes #52 Startdist Model OSError
+    model_loaded = False
+    attempts = 0
+    max_attempts = 10
+
+    while not model_loaded and attempts < max_attempts:
+        try:
+            if pretrained_model:
+                model_class = StarDist3D if do_3D else StarDist2D
+                model = model_class(
+                    None,
+                    name=pretrained_model.pretrained_model_name,
+                    basedir=pretrained_model.base_fld,
+                )
+            else:
+                model_class = StarDist3D if do_3D else StarDist2D
+                model = model_class.from_pretrained(model_type.value)
+
+            if model:
+                model_loaded = True
+                logger.info("StarDist model loaded successfully.")
+        except Exception as e:
+            attempts += 1
+            logger.warning(
+                f"Attempt {attempts}/{max_attempts} to "
+                f"load StarDist model failed: {e}"
             )
-        else:
-            model = StarDist2D(
-                None,
-                name=pretrained_model.pretrained_model_name,
-                basedir=pretrained_model.base_fld,
-            )
-    else:
-        if do_3D:
-            model = StarDist3D.from_pretrained(model_type.value)
-        else:
-            model = StarDist2D.from_pretrained(model_type.value)
+            time.sleep(uniform(2, 7))
+
+    if not model_loaded:
+        raise RuntimeError("Failed to load StarDist model after multiple attempts.")
 
     # Initialize other things
     logger.info(f"Start stardist_segmentation task for {zarr_url}")
