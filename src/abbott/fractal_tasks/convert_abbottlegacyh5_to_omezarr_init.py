@@ -236,6 +236,7 @@ def convert_abbottlegacyh5_to_omezarr_init(
                         input_files=input_files,
                         acquisition=acquisitions[acq],
                         well_ID=f"{row}{column}",
+                        plate_path=zarr_plate,
                         mrf_path=mrf_path,
                         mlf_path=mlf_path,
                         overwrite=overwrite,

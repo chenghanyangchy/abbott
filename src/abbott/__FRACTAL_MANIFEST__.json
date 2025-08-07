@@ -1701,6 +1701,10 @@
                 "title": "Well Id",
                 "type": "string"
               },
+              "plate_path": {
+                "title": "Plate Path",
+                "type": "string"
+              },
               "mrf_path": {
                 "title": "Mrf Path",
                 "type": "string"
@@ -1718,6 +1722,7 @@
               "input_files",
               "acquisition",
               "well_ID",
+              "plate_path",
               "mrf_path",
               "mlf_path",
               "overwrite"
