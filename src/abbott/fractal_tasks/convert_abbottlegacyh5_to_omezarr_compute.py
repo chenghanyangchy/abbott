@@ -58,7 +58,7 @@ def convert_single_h5_to_ome(
 
     Args:
         zarr_url: Output path to save the OME-Zarr file of the form
-            `zarr_dir/plate_name/row/column/`.
+            `zarr_dir/plate_name/row/column/cycle`.
         files_well: Path to the H5 files per well to be converted.
         level: The level of the image to convert. Default is 0.
         acquisition_id: The multiplexed acquisition cycle.
@@ -279,7 +279,9 @@ def convert_single_h5_to_ome(
                 )
 
     logger.info(f"Created OME-Zarr container for {files_well} at {zarr_url}")
-    im_list_types = {"is_3D": ome_zarr_container.is_3d}
+    im_list_types = {
+        "is_3D": ome_zarr_container.is_3d,
+    }
     return im_list_types
 
 
@@ -354,7 +356,18 @@ def convert_abbottlegacyh5_to_omezarr_compute(
     )
 
     logger.info(f"Succesfully converted {files_well} to {zarr_url}")
-    image_update = {"zarr_url": zarr_url, "types": im_list_types}
+
+    plate_attributes = {
+        "well": f"{init_args.well_ID}",
+        "plate": f"{init_args.plate_path}",
+        "acquisition": str(acquisition_id),
+    }
+
+    image_update = {
+        "zarr_url": zarr_url,
+        "types": im_list_types,
+        "attributes": plate_attributes,
+    }
 
     return {"image_list_updates": [image_update]}
 

@@ -69,6 +69,7 @@ class InitArgsCellVoyagerH5toOMEZarr(BaseModel):
             containing the channel information.
         well_ID: part of the image filename needed for finding the
             right subset of image files
+        plate_path: Name of the plate, used to create the OME-Zarr path.
         mrf_path: Path to the MRF file for metadata extraction.
         mlf_path: Path to the MLF file for metadata extraction.
         overwrite: Whether to overwrite existing OME-Zarr data.
@@ -77,6 +78,7 @@ class InitArgsCellVoyagerH5toOMEZarr(BaseModel):
     input_files: list[str]
     acquisition: ConverterMultiplexingAcquisition
     well_ID: str
+    plate_path: str
     mrf_path: str
     mlf_path: str
     overwrite: bool
