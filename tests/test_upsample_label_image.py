@@ -33,29 +33,24 @@ def test_data_dir_3d(tmp_path: Path, zenodo_zarr: Path) -> str:
 
 def test_upsample_label_image_same_resolutions(test_data_dir_3d):
     zarr_urls = [f"{test_data_dir_3d}/B/03/0", f"{test_data_dir_3d}/B/03/1"]
-    reference_acquisition = 2
 
-    for zarr_url in zarr_urls:
-        print(zarr_url)
-        upsample_label_image(
-            zarr_url=zarr_url,
-            reference_acquisition=reference_acquisition,
-            label_name="emb_linked",
-            output_label_name="emb_linked_upsampled",
-            input_ROI_table="emb_ROI_table_2_linked",
-            output_ROI_table="emb_ROI_table_2_linked",
-            level=0,
-            overwrite=True,
-        )
+    upsample_label_image(
+        zarr_url=zarr_urls[0],
+        label_name="emb_linked",
+        output_label_name="emb_linked_upsampled",
+        input_ROI_table="emb_ROI_table_2_linked",
+        output_ROI_table="emb_ROI_table_2_linked",
+        level=0,
+        overwrite=True,
+    )
 
 
 def test_upsample_label_image_lower_resolution(test_data_dir_3d):
     zarr_urls = [f"{test_data_dir_3d}/B/03/0", f"{test_data_dir_3d}/B/03/1"]
-    reference_acquisition = 2
-    label_name = "emb_linked"
+    label_name = "label_upsample"
 
     zarr_url = zarr_urls[0]
-    label_zarr_url = Path(f"{zarr_url}/labels/{label_name}")
+    label_zarr_url = Path(f"{zarr_url}/labels/emb_linked")
     label_image = da.from_zarr(f"{label_zarr_url}/1").compute()
 
     # Update zarr group
@@ -68,7 +63,6 @@ def test_upsample_label_image_lower_resolution(test_data_dir_3d):
         reference_level=1,
         remove_channel_axis=True,
     )
-
     label_attrs = {
         "image-label": {
             "version": __OME_NGFF_VERSION__,
@@ -134,12 +128,29 @@ def test_upsample_label_image_lower_resolution(test_data_dir_3d):
         aggregation_function=np.max,
     )
 
-    for zarr_url in zarr_urls:
+    output_label_name = "label_upsampled"
+    upsample_label_image(
+        zarr_url=zarr_url,
+        label_name=label_name,
+        output_label_name=output_label_name,
+        input_ROI_table="FOV_ROI_table",
+        output_ROI_table="emb_ROI_table_upsampled",
+        level=0,
+        overwrite=True,
+    )
+
+    # Check that the upsampled label image has the same shape as the
+    # original (correct) label image
+    label_zarr_url = Path(f"{zarr_url}/labels/{output_label_name}")
+    label_image_new = da.from_zarr(f"{label_zarr_url}/1").compute()
+    assert label_image.shape == label_image_new.shape
+
+    # Test FileNotFoundError if label_name does not exist
+    with pytest.raises(FileNotFoundError):
         upsample_label_image(
-            zarr_url=zarr_url,
-            reference_acquisition=reference_acquisition,
+            zarr_url=zarr_urls[1],
             label_name=label_name,
-            output_label_name="emb_linked_upsampled",
+            output_label_name=output_label_name,
             input_ROI_table="FOV_ROI_table",
             output_ROI_table="emb_ROI_table_upsampled",
             level=0,
