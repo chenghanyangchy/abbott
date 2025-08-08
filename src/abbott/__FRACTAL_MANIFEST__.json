@@ -1342,11 +1342,6 @@
             "type": "string",
             "description": "Path or url to the individual OME-Zarr image to be processed. (standard argument for Fractal tasks, managed by Fractal server)."
           },
-          "reference_acquisition": {
-            "title": "Reference Acquisition",
-            "type": "integer",
-            "description": "Which acquisition contains the label image to upsample. Needs to match the acquisition metadata in the OME-Zarr image."
-          },
           "label_name": {
             "title": "Label Name",
             "type": "string",
@@ -1382,7 +1377,6 @@
         },
         "required": [
           "zarr_url",
-          "reference_acquisition",
           "label_name",
           "input_ROI_table"
         ],
