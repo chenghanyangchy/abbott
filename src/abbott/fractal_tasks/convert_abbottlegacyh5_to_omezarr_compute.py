@@ -117,9 +117,8 @@ def convert_single_h5_to_ome(
 
         # Extract metadata from the h5_file
         pixel_sizes_zyx_dict = {"z": scale[0], "y": scale[1], "x": scale[2]}
-        FOV, top_left, bottom_right, origin = extract_cellvoyager_metadata(
+        FOV, top_left, bottom_right = extract_cellvoyager_metadata(
             metadata=metadata,
-            pixel_sizes_zyx_dict=pixel_sizes_zyx_dict,
             h5_file=file,
         )
 
@@ -145,7 +144,6 @@ def convert_single_h5_to_ome(
             "shape": shape,
             "top_left_coords": top_left,
             "bottom_right_coords": bottom_right,
-            "origin": origin,
         }
 
     # Check that all files have the same shape, no channels are missing from files

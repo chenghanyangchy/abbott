@@ -17,13 +17,15 @@ from typing import Optional
 
 import dask.array as da
 import h5py
+import numpy as np
 import pandas as pd
-from ngio import PixelSize
+from fractal_tasks_core.roi import remove_FOV_overlaps
+from fractal_tasks_core.roi.v1 import prepare_FOV_ROI_table
 
 from abbott.fractal_tasks.converter.io_models import (
     ConverterOmeroChannel,
 )
-from abbott.fractal_tasks.converter.tile import OriginDict, Point
+from abbott.fractal_tasks.converter.tile import Point
 
 logger = logging.getLogger(__name__)
 
@@ -69,76 +71,75 @@ def parse_filename(filename: str) -> dict[str, str]:
     return output
 
 
+def _extract_ROI(
+    metadata: pd.DataFrame,
+    well_id: str,
+    x_micrometer: str,
+    y_micrometer: str,
+) -> int:
+    """Extract ROI from metadata DataFrame."""
+    metadata = metadata.loc[well_id]
+    metadata = metadata.reset_index()
+    metadata["x_micrometer"] = metadata["x_micrometer"].apply(
+        lambda x: abs(round(float(x)))
+    )
+    metadata["y_micrometer"] = metadata["y_micrometer"].apply(
+        lambda y: abs(round(float(y)))
+    )
+    metadata = metadata[
+        (metadata["x_micrometer"] == abs(round(float(x_micrometer))))
+        & (metadata["y_micrometer"] == abs(round(float(y_micrometer))))
+    ]
+    if metadata.empty:
+        raise ValueError(
+            "No matching metadata found in the provided Cellvoyager metadata."
+        )
+
+    return int(metadata["FieldIndex"].values[0])
+
+
 def extract_cellvoyager_metadata(
-    metadata: pd.DataFrame, pixel_sizes_zyx_dict: dict, h5_file: str
-) -> tuple[int, Point, Point, OriginDict]:
+    metadata: pd.DataFrame, h5_file: str
+) -> tuple[int, Point, Point]:
     """Extract metadata (coords, ROI)
 
     from Cellvoyager metadata DataFrame from h5_file name.
     """
-    agg_meta = metadata.groupby(["well_id", "FieldIndex"]).agg(list)
-
+    # First extract metadata from h5_file name
     h5_filename = Path(h5_file).stem
     well_id, x, y = h5_filename.split("_")
     x_micrometer_h5 = x.split("-")[1] if "-" in x else x.split("+")[1]
     y_micrometer_h5 = y.split("-")[1] if "-" in y else y.split("+")[1]
 
-    agg_meta = agg_meta.loc[well_id].reset_index()
-    metawell = agg_meta.copy()
-    metawell["x_micrometer"] = metawell["x_micrometer"].apply(
-        lambda x: abs(round(float(x[0])))
-    )
-    metawell["y_micrometer"] = metawell["y_micrometer"].apply(
-        lambda y: abs(round(float(y[0])))
-    )
+    # Next extract FieldIndex (ROI)
+    ROI = _extract_ROI(metadata, well_id, x_micrometer_h5, y_micrometer_h5)
 
-    metawell_roi = metawell[
-        (metawell["x_micrometer"] == abs(round(float(x_micrometer_h5))))
-        & (metawell["y_micrometer"] == abs(round(float(y_micrometer_h5))))
-    ]
-    if metawell_roi.empty:
-        raise ValueError(
-            f"No matching metadata found for {h5_filename=} "
-            "in the provided Cellvoyager metadata."
-        )
+    metadata = remove_FOV_overlaps(metadata)
+    metadata_well = metadata.loc[well_id]
+    FOV_ROIs_table = prepare_FOV_ROI_table(metadata_well)
+    roi_array = np.squeeze(FOV_ROIs_table[ROI - 1].X)
+    roi_array = np.array(roi_array, dtype=float)
 
-    ROI = int(metawell_roi["FieldIndex"].values[0])
-    agg_meta = agg_meta[agg_meta["FieldIndex"] == ROI].reset_index(drop=True)
+    # Extract the coordinates
+    pos_x = roi_array[0]
+    pos_y = roi_array[1]
+    pos_z = roi_array[2]
+    size_x = metadata_well.x_pixel[ROI]
+    size_y = metadata_well.y_pixel[ROI]
 
-    pixel_sizes = PixelSize(
-        x=pixel_sizes_zyx_dict.get("x", 1),
-        y=pixel_sizes_zyx_dict.get("y", 1),
-        z=pixel_sizes_zyx_dict.get("z", 1),
-    )
-
-    # Always extract the first element from list-valued columns
-    assert all(agg_meta.x_micrometer[0] == x for x in agg_meta.x_micrometer)
-    assert all(agg_meta.y_micrometer[0] == y for y in agg_meta.y_micrometer)
-    pos_x = int(round(agg_meta.x_micrometer[0][0] / pixel_sizes.x))
-    pos_y = int(round(agg_meta.y_micrometer[0][0] / pixel_sizes.y))
-    size_x = agg_meta.x_pixel[0][0]
-    size_y = agg_meta.y_pixel[0][0]
-
-    min_z = min(agg_meta.z_micrometer[0])
     top_left = Point(
         x=pos_x,
         y=pos_y,
-        z=min_z,
+        z=pos_z,
     )
-    max_z = max(agg_meta.z_micrometer[0])
+
     bottom_right = Point(
         x=pos_x + size_x,
         y=pos_y + size_y,
-        z=(max_z + 1),
+        z=(pos_z + 1),
     )
 
-    origin = OriginDict(
-        x_micrometer_original=pos_x,
-        y_micrometer_original=pos_y,
-        z_micrometer_original=0,
-    )
-
-    return ROI, top_left, bottom_right, origin
+    return ROI, top_left, bottom_right
 
 
 def h5_datasets(f: h5py.File, return_names=False, dsets=None) -> list[h5py.Dataset]:
