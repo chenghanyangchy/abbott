@@ -3,6 +3,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 import pytest
+from ngio import open_ome_zarr_container
 
 from abbott.fractal_tasks.convert_abbottlegacyh5_to_omezarr_compute import (
     convert_abbottlegacyh5_to_omezarr_compute,
@@ -186,3 +187,6 @@ def test_full_workflow_3D(sample_h5_file_3d: list[Path], tmp_path: Path):
 
         zarr_url = image_list_update["image_list_updates"][0]["zarr_url"]
         assert Path(zarr_url).exists()
+        # Make sure no errors are raised when opening the OME Zarr container and table
+        ome_zarr_container = open_ome_zarr_container(zarr_url)
+        ome_zarr_container.get_table("FOV_ROI_table")
