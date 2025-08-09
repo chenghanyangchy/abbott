@@ -98,34 +98,51 @@ def _extract_ROI(
     return int(metadata["FieldIndex"].values[0])
 
 
-def extract_cellvoyager_metadata(
-    metadata: pd.DataFrame, h5_file: str
+def extract_ROIs_from_h5_files(
+    files_well: list[str],
+    metadata: pd.DataFrame,
+) -> tuple[dict[str, int], pd.DataFrame]:
+    """Extract ROIs from H5 files and return a dictionary of file to ROI mapping."""
+    file_roi_dict = {}
+    for h5_file in files_well:
+        h5_filename = Path(h5_file).stem
+        well_id, x, y = h5_filename.split("_")
+        x = x.split("-")[1] if "-" in x else x.split("+")[1]
+        y = y.split("-")[1] if "-" in y else y.split("+")[1]
+        ROI = _extract_ROI(metadata, well_id, x, y)
+        file_roi_dict[h5_file] = ROI
+
+    # Remove all rows that are not in the file_roi_dict.values
+    metadata = metadata.loc[well_id]
+    metadata = metadata[metadata.index.isin(file_roi_dict.values())]
+    # Reset well_id index otherwise remove_FOV_overlaps will not work
+    metadata.index = pd.MultiIndex.from_product(
+        [[well_id], metadata.index], names=["well_id", "FieldIndex"]
+    )
+    metadata = remove_FOV_overlaps(metadata)
+    metadata = metadata.loc[well_id]
+
+    return file_roi_dict, metadata
+
+
+def extract_ROI_coordinates(
+    metadata: pd.DataFrame, ROI: int
 ) -> tuple[int, Point, Point]:
     """Extract metadata (coords, ROI)
 
     from Cellvoyager metadata DataFrame from h5_file name.
     """
-    # First extract metadata from h5_file name
-    h5_filename = Path(h5_file).stem
-    well_id, x, y = h5_filename.split("_")
-    x_micrometer_h5 = x.split("-")[1] if "-" in x else x.split("+")[1]
-    y_micrometer_h5 = y.split("-")[1] if "-" in y else y.split("+")[1]
+    FOV_ROIs_table = prepare_FOV_ROI_table(metadata)
 
-    # Next extract FieldIndex (ROI)
-    ROI = _extract_ROI(metadata, well_id, x_micrometer_h5, y_micrometer_h5)
-
-    metadata = remove_FOV_overlaps(metadata)
-    metadata_well = metadata.loc[well_id]
-    FOV_ROIs_table = prepare_FOV_ROI_table(metadata_well)
-    roi_array = np.squeeze(FOV_ROIs_table[ROI - 1].X)
+    roi_array = np.squeeze(FOV_ROIs_table[f"FOV_{ROI}"].X)
     roi_array = np.array(roi_array, dtype=float)
 
     # Extract the coordinates
     pos_x = roi_array[0]
     pos_y = roi_array[1]
     pos_z = roi_array[2]
-    size_x = metadata_well.x_pixel[ROI]
-    size_y = metadata_well.y_pixel[ROI]
+    size_x = metadata.x_pixel[ROI]
+    size_y = metadata.y_pixel[ROI]
 
     top_left = Point(
         x=pos_x,
@@ -138,8 +155,7 @@ def extract_cellvoyager_metadata(
         y=pos_y + size_y,
         z=(pos_z + 1),
     )
-
-    return ROI, top_left, bottom_right
+    return top_left, bottom_right
 
 
 def h5_datasets(f: h5py.File, return_names=False, dsets=None) -> list[h5py.Dataset]:

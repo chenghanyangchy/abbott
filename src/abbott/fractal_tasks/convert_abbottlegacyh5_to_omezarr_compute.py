@@ -32,7 +32,8 @@ from abbott.fractal_tasks.converter.io_models import (
     InitArgsCellVoyagerH5toOMEZarr,
 )
 from abbott.fractal_tasks.converter.task_utils import (
-    extract_cellvoyager_metadata,
+    extract_ROI_coordinates,
+    extract_ROIs_from_h5_files,
     find_chunk_shape,
     find_dtype,
     find_shape,
@@ -72,6 +73,12 @@ def convert_single_h5_to_ome(
     """
     logger.info(f"Converting {files_well} to OME-Zarr at {zarr_url}")
     zarr_url = zarr_url.rstrip("/")
+
+    # Extract FOV ROIs
+    file_roi_dict, metadata = extract_ROIs_from_h5_files(
+        files_well=files_well,
+        metadata=metadata,
+    )
 
     # Start extracting image data from the H5 files
     files_dict = {}
@@ -116,10 +123,11 @@ def convert_single_h5_to_ome(
             channel_lbl_labels = list(lbls_dict.keys())
 
         # Extract metadata from the h5_file
+        ROI_id = file_roi_dict[file]
         pixel_sizes_zyx_dict = {"z": scale[0], "y": scale[1], "x": scale[2]}
-        FOV, top_left, bottom_right = extract_cellvoyager_metadata(
+        top_left, bottom_right = extract_ROI_coordinates(
             metadata=metadata,
-            h5_file=file,
+            ROI=ROI_id,
         )
 
         # Handle single and multi channel images
@@ -131,7 +139,7 @@ def convert_single_h5_to_ome(
 
         shape = array.shape
         channel_labels = list(imgs_dict.keys())
-        files_dict[FOV] = {
+        files_dict[ROI_id] = {
             "array": array,
             "lbl_array": lbl_arrays
             if acquisition_params.allowed_label_channels
@@ -190,8 +198,8 @@ def convert_single_h5_to_ome(
             levels=ome_zarr_parameters.number_multiscale,
             xy_scaling_factor=ome_zarr_parameters.xy_scaling_factor,
             z_scaling_factor=ome_zarr_parameters.z_scaling_factor,
-            channel_labels=files_dict[FOV]["channel_labels"],
-            channel_wavelengths=files_dict[FOV]["channel_wavelengths"],
+            channel_labels=files_dict[ROI_id]["channel_labels"],
+            channel_wavelengths=files_dict[ROI_id]["channel_wavelengths"],
             axes_names=("c", "z", "y", "x"),
             overwrite=overwrite,
         )
@@ -239,12 +247,13 @@ def convert_single_h5_to_ome(
     ome_zarr_container.add_table("FOV_ROI_table", table=table)
 
     # Set labels if available
-    if files_dict[FOV]["lbl_array"]:
+    if files_dict[ROI_id]["lbl_array"]:
         roi_table = ome_zarr_container.get_table("FOV_ROI_table")
-        for i, channel_lbl in enumerate(files_dict[FOV]["channel_lbl_labels"]):
+        for i, channel_lbl in enumerate(files_dict[ROI_id]["channel_lbl_labels"]):
             label = ome_zarr_container.derive_label(
                 name=channel_lbl, overwrite=overwrite
             )
+            # For each ROI, set the label data
             for roi in roi_table.rois():
                 roi_id = roi.name.split("_")[-1]
                 label_array_roi = files_dict[int(roi_id)]["lbl_array"][i]
@@ -259,7 +268,7 @@ def convert_single_h5_to_ome(
 
     # Build masking roi table if masking label is provided
     if masking_label is not None:
-        channel_lbl_labels = files_dict[FOV]["channel_lbl_labels"]
+        channel_lbl_labels = files_dict[ROI_id]["channel_lbl_labels"]
         if channel_lbl_labels is not None and masking_label in channel_lbl_labels:
             try:
                 masking_roi_table = ome_zarr_container.build_masking_roi_table(
