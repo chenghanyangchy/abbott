@@ -25,7 +25,7 @@ from fractal_tasks_core.roi.v1 import prepare_FOV_ROI_table
 from abbott.fractal_tasks.converter.io_models import (
     ConverterOmeroChannel,
 )
-from abbott.fractal_tasks.converter.tile import Point
+from abbott.fractal_tasks.converter.tile import OriginDict, Point
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,6 @@ def extract_ROIs_from_h5_files(
     # Remove all rows that are not in the file_roi_dict.values
     metadata = metadata.loc[well_id]
     metadata = metadata[metadata.index.isin(file_roi_dict.values())]
-    # Reset well_id index otherwise remove_FOV_overlaps will not work
     metadata.index = pd.MultiIndex.from_product(
         [[well_id], metadata.index], names=["well_id", "FieldIndex"]
     )
@@ -127,7 +126,7 @@ def extract_ROIs_from_h5_files(
 
 def extract_ROI_coordinates(
     metadata: pd.DataFrame, ROI: int
-) -> tuple[int, Point, Point]:
+) -> tuple[Point, Point, OriginDict]:
     """Extract metadata (coords, ROI)
 
     from Cellvoyager metadata DataFrame from h5_file name.
@@ -138,9 +137,9 @@ def extract_ROI_coordinates(
     roi_array = np.array(roi_array, dtype=float)
 
     # Extract the coordinates
-    pos_x = roi_array[0]
-    pos_y = roi_array[1]
-    pos_z = roi_array[2]
+    pos_x = roi_array[0] / metadata.pixel_size_x[ROI]
+    pos_y = roi_array[1] / metadata.pixel_size_y[ROI]
+    pos_z = roi_array[2] / metadata.pixel_size_x[ROI]
     size_x = metadata.x_pixel[ROI]
     size_y = metadata.y_pixel[ROI]
 
@@ -151,11 +150,18 @@ def extract_ROI_coordinates(
     )
 
     bottom_right = Point(
-        x=pos_x + size_x,
-        y=pos_y + size_y,
+        x=(pos_x + size_x) / metadata.pixel_size_x[ROI],
+        y=(pos_y + size_y) / metadata.pixel_size_y[ROI],
         z=(pos_z + 1),
     )
-    return top_left, bottom_right
+
+    origin = OriginDict(
+        x_micrometer_original=pos_x,
+        y_micrometer_original=pos_y,
+        z_micrometer_original=0,
+    )
+
+    return top_left, bottom_right, origin
 
 
 def h5_datasets(f: h5py.File, return_names=False, dsets=None) -> list[h5py.Dataset]:

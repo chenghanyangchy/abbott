@@ -51,8 +51,8 @@ def sample_h5_file_3d(tmp_path: Path):
     """Create a sample h5 file for testing."""
     tmp_path = Path(tmp_path) / "data"
     tmp_path.mkdir(parents=True, exist_ok=True)
-    h5_file_path_1 = tmp_path / "B02_px-1229_py-0112.h5"
-    h5_file_path_2 = tmp_path / "B02_px+1586_py-1539.h5"
+    h5_file_path_1 = tmp_path / "B02_px-1849_py-0958.h5"
+    h5_file_path_2 = tmp_path / "B02_px-2514_py+0114.h5"
     random_image_c0 = np.random.randint(0, 3, (15, 2000, 2000))
     random_image_c1 = np.random.randint(0, 3, (15, 2000, 2000))
     random_label_c0_file_1 = np.zeros((15, 2000, 2000), dtype=np.int32)
