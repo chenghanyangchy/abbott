@@ -125,7 +125,7 @@ def convert_single_h5_to_ome(
         # Extract metadata from the h5_file
         ROI_id = file_roi_dict[file]
         pixel_sizes_zyx_dict = {"z": scale[0], "y": scale[1], "x": scale[2]}
-        top_left, bottom_right = extract_ROI_coordinates(
+        top_left, bottom_right, origin = extract_ROI_coordinates(
             metadata=metadata,
             ROI=ROI_id,
         )
@@ -218,7 +218,7 @@ def convert_single_h5_to_ome(
     ome_zarr_container.add_table("well_ROI_table", table=well_roi)
 
     # Write the images as ROIs in the image
-    image = ome_zarr_container.get_image()
+    image = ome_zarr_container.get_image(path="0")
     pixel_size = image.pixel_size
 
     _fov_rois = []
@@ -235,8 +235,10 @@ def convert_single_h5_to_ome(
             x_length=s_x,
             y_length=s_y,
             z_length=s_z,
+            **origin._asdict(),
         )
         roi = roi_pix.to_roi(pixel_size=pixel_size)
+        logger.debug(f"roi: {roi}")
         _fov_rois.append(roi)
         image.set_roi(roi=roi, patch=image_data, axes_order=("c", "z", "y", "x"))
 
