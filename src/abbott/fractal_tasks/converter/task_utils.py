@@ -156,9 +156,8 @@ def extract_ROI_coordinates(
     )
 
     origin = OriginDict(
-        x_micrometer_original=pos_x,
-        y_micrometer_original=pos_y,
-        z_micrometer_original=0,
+        x_micrometer_original=roi_array[0],
+        y_micrometer_original=roi_array[1],
     )
 
     return top_left, bottom_right, origin
