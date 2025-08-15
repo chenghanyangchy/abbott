@@ -234,10 +234,11 @@ def convert_single_h5_to_ome(
 
             patch = da.expand_dims(img, axis=0)
             image.set_roi(roi=roi, c=i, patch=patch, axes_order=("c", "z", "y", "x"))
+            image.consolidate()
     logger.info("Finished writing images to OME-Zarr container.")
 
     # Build pyramids, set defaults and set FOV table
-    image.consolidate()
+    # image.consolidate()
     ome_zarr_container.set_channel_percentiles(start_percentile=1, end_percentile=99.9)
     table = RoiTable(rois=_fov_rois)
     ome_zarr_container.add_table("FOV_ROI_table", table=table)
