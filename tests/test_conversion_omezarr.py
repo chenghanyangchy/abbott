@@ -53,8 +53,7 @@ def sample_h5_file_3d(tmp_path: Path):
     tmp_path.mkdir(parents=True, exist_ok=True)
     h5_file_path_1 = tmp_path / "B02_px-1849_py-0958.h5"
     h5_file_path_2 = tmp_path / "B02_px-2514_py+0114.h5"
-    random_image_c0 = np.random.randint(0, 3, (15, 2000, 2000))
-    random_image_c1 = np.random.randint(0, 3, (15, 2000, 2000))
+    random_image = np.random.randint(0, 3, (15, 2000, 2000))
     random_label_c0_file_1 = np.zeros((15, 2000, 2000), dtype=np.int32)
     random_label_c0_file_1[:, 100:900, 100:900] = 1
     random_label_c0_file_1[:, 1100:1900, 1100:1900] = 2
@@ -65,7 +64,7 @@ def sample_h5_file_3d(tmp_path: Path):
         create_h5(
             f,
             dset_name="ch_00/0",
-            data=random_image_c0,
+            data=random_image,
             stain="DAPI",
             cycle=0,
             wavelength=405,
@@ -73,7 +72,15 @@ def sample_h5_file_3d(tmp_path: Path):
         create_h5(
             f,
             dset_name="ch_01/0",
-            data=random_image_c1,
+            data=random_image,
+            stain="FITC",
+            cycle=0,
+            wavelength=405,
+        )
+        create_h5(
+            f,
+            dset_name="ch_02/0",
+            data=random_image,
             stain="FITC",
             cycle=1,
             wavelength=488,
@@ -92,7 +99,7 @@ def sample_h5_file_3d(tmp_path: Path):
         create_h5(
             f,
             dset_name="ch_00/0",
-            data=random_image_c0,
+            data=random_image,
             stain="DAPI",
             cycle=0,
             wavelength=405,
@@ -100,7 +107,15 @@ def sample_h5_file_3d(tmp_path: Path):
         create_h5(
             f,
             dset_name="ch_01/0",
-            data=random_image_c1,
+            data=random_image,
+            stain="FITC",
+            cycle=0,
+            wavelength=405,
+        )
+        create_h5(
+            f,
+            dset_name="ch_02/0",
+            data=random_image,
             stain="FITC",
             cycle=1,
             wavelength=488,
@@ -125,11 +140,17 @@ def test_full_workflow_3D(sample_h5_file_3d: list[Path], tmp_path: Path):
             "label": "DAPI",
             "new_label": "DAPI_0",
         },
+        {
+            "wavelength_id": 488,
+            "label": "FITC",
+            "new_label": "FITC_0",
+        },
     ]
     allowed_image_channels_c1 = [
         {
             "wavelength_id": 488,
             "label": "FITC",
+            "new_label": "FITC_1",
         },
     ]
     allowed_label_channels_c0 = [

@@ -256,7 +256,7 @@ def h5_load(
 
 
 def find_shape(
-    bottom_right: list[Point], dask_imgs: list[da.Array]
+    bottom_right: list[Point], dask_array: da.Array
 ) -> tuple[int, int, int, int]:
     """Find the shape of the image."""
     max_r_x = max(bot_r.x for bot_r in bottom_right)
@@ -265,25 +265,20 @@ def find_shape(
     shape_x = int(max_r_x)
     shape_y = int(max_r_y)
 
-    shape_c, shape_z, *_ = dask_imgs[0].shape
+    shape_c, shape_z, *_ = dask_array.shape
     return shape_c, shape_z, shape_y, shape_x
 
 
 def find_chunk_shape(
-    dask_imgs: list[da.Array],
+    dask_array: da.Array,
     max_xy_chunk: int = 4096,
     z_chunk: int = 1,
     c_chunk: int = 1,
 ) -> tuple[int, int, int, int]:
     """Find the chunk shape of the image."""
-    shape_c, shape_z, shape_y, shape_x = dask_imgs[0].shape
+    shape_c, shape_z, shape_y, shape_x = dask_array.shape
     chunk_y = min(shape_y, max_xy_chunk)
     chunk_x = min(shape_x, max_xy_chunk)
     chunk_z = min(shape_z, z_chunk)
     chunk_c = min(shape_c, c_chunk)
     return chunk_c, chunk_z, chunk_y, chunk_x
-
-
-def find_dtype(dask_imgs: list[da.Array]) -> str:
-    """Find the dtype of the image."""
-    return dask_imgs[0].dtype
