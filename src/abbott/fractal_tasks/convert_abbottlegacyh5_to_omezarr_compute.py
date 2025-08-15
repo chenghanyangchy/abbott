@@ -128,7 +128,7 @@ def convert_single_h5_to_ome(
                 "roi_id": ROI_id,
                 "top_left": top_left,
                 "bottom_right": bottom_right,
-                "origin": origin,  # store per-ROI origin (fixes origin bug)
+                "origin": origin,
                 "shape_zyx": shape_zyx,
             }
         )
@@ -146,7 +146,7 @@ def convert_single_h5_to_ome(
         bottom_right=bottom_rights,
         dask_array=sample_array,
     )
-    # Ensure C dimension is correct
+    # Ensure c dimension is correct
     if len(on_disk_shape) == 3:
         on_disk_shape = (n_channels, *on_disk_shape)
     elif len(on_disk_shape) == 4 and on_disk_shape[0] != n_channels:
@@ -221,8 +221,9 @@ def convert_single_h5_to_ome(
         roi = roi_pix.to_roi(pixel_size=pixel_size)
         _fov_rois.append(roi)
 
-        # For each ROI, loop over channels and write images (memory-efficient)
-        for i, ch in enumerate(img_channels):
+        # For each ROI, write all channels
+        imgs = []
+        for ch in img_channels:
             img, _, _ = h5_load(
                 input_path=entry["file"],
                 channel=ch,
@@ -231,17 +232,18 @@ def convert_single_h5_to_ome(
                 img_type="intensity",
                 h5_handle=h5_handles[entry["file"]],
             )
-
-            patch = da.expand_dims(img, axis=0)
-            image.set_roi(roi=roi, c=i, patch=patch, axes_order=("c", "z", "y", "x"))
-            image.consolidate()
-    logger.info("Finished writing images to OME-Zarr container.")
+            imgs.append(img)
+        patch = (
+            da.expand_dims(img, axis=0) if len(imgs) == 1 else da.stack(imgs, axis=0)
+        )
+        image.set_roi(roi=roi, patch=patch, axes_order=("c", "z", "y", "x"))
 
     # Build pyramids, set defaults and set FOV table
-    # image.consolidate()
+    image.consolidate()
     ome_zarr_container.set_channel_percentiles(start_percentile=1, end_percentile=99.9)
     table = RoiTable(rois=_fov_rois)
     ome_zarr_container.add_table("FOV_ROI_table", table=table)
+    logger.info("Finished writing images to OME-Zarr container.")
 
     # Set labels if avalable
     if lbl_channels:
