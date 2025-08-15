@@ -163,7 +163,7 @@ def convert_single_h5_to_ome(
     chunk_shape = tuple(
         min(c, s) for c, s in zip(chunk_shape, on_disk_shape, strict=True)
     )
-    logger.info(f"Chunk shape: {chunk_shape}" f" for on-disk shape {on_disk_shape}")
+    logging.info(f"Chunk shape: {chunk_shape}" f"On-disk shape {on_disk_shape}")
 
     # Free memory
     del sample_arrays

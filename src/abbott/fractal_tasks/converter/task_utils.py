@@ -139,9 +139,10 @@ def extract_ROI_coordinates(
     # Extract the coordinates
     pos_x = roi_array[0] / metadata.pixel_size_x[ROI]
     pos_y = roi_array[1] / metadata.pixel_size_y[ROI]
-    pos_z = roi_array[2] / metadata.pixel_size_x[ROI]
+    pos_z = roi_array[2] / metadata.pixel_size_z[ROI]
     size_x = metadata.x_pixel[ROI]
     size_y = metadata.y_pixel[ROI]
+    size_z = metadata.z_pixel[ROI]
 
     top_left = Point(
         x=pos_x,
@@ -150,9 +151,9 @@ def extract_ROI_coordinates(
     )
 
     bottom_right = Point(
-        x=(pos_x + size_x) / metadata.pixel_size_x[ROI],
-        y=(pos_y + size_y) / metadata.pixel_size_y[ROI],
-        z=(pos_z + 1),
+        x=(pos_x + size_x),
+        y=(pos_y + size_y),
+        z=(pos_z + size_z),
     )
 
     origin = OriginDict(
