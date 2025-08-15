@@ -35,7 +35,6 @@ from abbott.fractal_tasks.converter.task_utils import (
     extract_ROI_coordinates,
     extract_ROIs_from_h5_files,
     find_chunk_shape,
-    find_dtype,
     find_shape,
     h5_load,
 )
@@ -76,59 +75,52 @@ def convert_single_h5_to_ome(
     n_channels = len(channel_labels)
 
     # First pass: collect only lightweight metadata and sample shapes/chunks
+    logger.info("Collecting metadata and sample shapes...")
     entries: list[dict] = []
-    sample_arrays = []  # dummy arrays only for shape/chunk/dtype inference
     bottom_rights = []
     h5_handles: dict[str, object] = {}
     pixel_sizes_zyx_dict = None
-    sample_dtype = None
+    built_array = False
 
     for file in files_well:
         ROI_id = file_roi_dict[file]
         # Use first image channel to read shape/scale;
         # reuse the handle for all reads of this file
         ch0 = img_channels[0]
-        img0, scale, h5_handle = h5_load(
-            input_path=file,
-            channel=ch0,
-            level=level,
-            cycle=int(acquisition_id),
-            img_type="intensity",
-        )
+        if not built_array:
+            sample_arrays = []
+            for ch in img_channels:
+                img0, scale, h5_handle = h5_load(
+                    input_path=file,
+                    channel=ch,
+                    level=level,
+                    cycle=int(acquisition_id),
+                    img_type="intensity",
+                )
+                sample_arrays.append(img0)
+            built_array = True
+            sample_array = da.stack(sample_arrays, axis=0)
+
+        else:
+            img0, _, h5_handle = h5_load(
+                input_path=file,
+                channel=ch0,
+                level=level,
+                cycle=int(acquisition_id),
+                img_type="intensity",
+            )
+
         if file not in h5_handles:
             h5_handles[file] = h5_handle
 
         if pixel_sizes_zyx_dict is None:
             pixel_sizes_zyx_dict = {"z": scale[0], "y": scale[1], "x": scale[2]}
-        if sample_dtype is None:
-            sample_dtype = getattr(img0, "dtype", None)
-
         top_left, bottom_right, origin = extract_ROI_coordinates(
             metadata=metadata, ROI=ROI_id
         )
         bottom_rights.append(bottom_right)
 
-        # Sample shape/chunks (ZYX).
-        # Build a dummy dask array with a C dimension for inference.
-        sample_shape_zyx = tuple(getattr(img0, "shape", ()))
-        # Try to obtain chunks; fall back to full-shape single chunk
-        chunks_zyx = None
-        for attr in ("chunks", "chunksize"):
-            if hasattr(img0, attr):
-                chunks_zyx = getattr(img0, attr)
-                break
-        if not chunks_zyx:
-            chunks_zyx = sample_shape_zyx
-
-        dummy = da.empty(
-            (n_channels, *sample_shape_zyx),
-            dtype=sample_dtype,
-            chunks=(
-                min(ome_zarr_parameters.c_chunk or n_channels, n_channels),
-                *tuple(chunks_zyx),
-            ),
-        )
-        sample_arrays.append(dummy)
+        shape_zyx = img0.shape
 
         entries.append(
             {
@@ -137,12 +129,12 @@ def convert_single_h5_to_ome(
                 "top_left": top_left,
                 "bottom_right": bottom_right,
                 "origin": origin,  # store per-ROI origin (fixes origin bug)
-                "sample_shape_zyx": sample_shape_zyx,
+                "shape_zyx": shape_zyx,
             }
         )
 
     # Validate that shapes are consistent across files
-    shapes_zyx = {e["sample_shape_zyx"] for e in entries}
+    shapes_zyx = {e["shape_zyx"] for e in entries}
     if len(shapes_zyx) != 1:
         raise ValueError(
             f"All files for {files_well} and acquisition {acquisition_id} "
@@ -152,7 +144,7 @@ def convert_single_h5_to_ome(
     # Compute on-disk shape/chunks/dtype using lightweight dummies
     on_disk_shape = find_shape(
         bottom_right=bottom_rights,
-        dask_imgs=sample_arrays,
+        dask_array=sample_array,
     )
     # Ensure C dimension is correct
     if len(on_disk_shape) == 3:
@@ -161,24 +153,29 @@ def convert_single_h5_to_ome(
         on_disk_shape = (n_channels,) + on_disk_shape[1:]
 
     chunk_shape = find_chunk_shape(
-        dask_imgs=sample_arrays,
+        dask_array=sample_array,
         max_xy_chunk=ome_zarr_parameters.max_xy_chunk,
         z_chunk=ome_zarr_parameters.z_chunk,
         c_chunk=ome_zarr_parameters.c_chunk,
     )
+
     # Chunk shape should be <= on-disk shape per axis
     chunk_shape = tuple(
         min(c, s) for c, s in zip(chunk_shape, on_disk_shape, strict=True)
     )
-    img_dtype = find_dtype(dask_imgs=sample_arrays)
+    logger.info(f"Chunk shape: {chunk_shape}" f" for on-disk shape {on_disk_shape}")
 
+    # Free memory
+    del sample_arrays
+    del sample_array
+
+    logger.info("Starting to create OME-Zarr container...")
     # Try creating the empty OME-Zarr container
     try:
         ome_zarr_container = create_empty_ome_zarr(
             store=zarr_url,
             shape=on_disk_shape,
             chunks=chunk_shape,
-            dtype=img_dtype,
             xy_pixelsize=pixel_sizes_zyx_dict["x"],
             z_spacing=pixel_sizes_zyx_dict["z"],
             levels=ome_zarr_parameters.number_multiscale,
@@ -198,17 +195,19 @@ def convert_single_h5_to_ome(
         im_list_types = {"is_3D": ome_zarr_container.is_3d}
         return im_list_types
 
+    logger.info(f"OME-Zarr container created at {zarr_url}")
     # Create the well ROI table
     well_roi = ome_zarr_container.build_image_roi_table("Well")
     ome_zarr_container.add_table("well_ROI_table", table=well_roi)
 
     # Write images per ROI (streaming, no global files_dict)
-    image = ome_zarr_container.get_image(path="0")
+    image = ome_zarr_container.get_image()
     pixel_size = image.pixel_size
     _fov_rois = []
 
+    logger.info("Writing images to OME-Zarr container...")
     for entry in entries:
-        s_z, s_y, s_x = entry["sample_shape_zyx"]
+        s_z, s_y, s_x = entry["shape_zyx"]
         roi_pix = RoiPixels(
             name=f"FOV_{entry['roi_id']}",
             x=int(entry["top_left"].x),
@@ -222,9 +221,8 @@ def convert_single_h5_to_ome(
         roi = roi_pix.to_roi(pixel_size=pixel_size)
         _fov_rois.append(roi)
 
-        # Build per-file channel stack lazily and write immediately
-        imgs = []
-        for ch in img_channels:
+        # For each ROI, loop over channels and write images (memory-efficient)
+        for i, ch in enumerate(img_channels):
             img, _, _ = h5_load(
                 input_path=entry["file"],
                 channel=ch,
@@ -233,14 +231,10 @@ def convert_single_h5_to_ome(
                 img_type="intensity",
                 h5_handle=h5_handles[entry["file"]],
             )
-            imgs.append(img)
 
-        patch = (
-            da.expand_dims(imgs[0], axis=0)
-            if len(imgs) == 1
-            else da.stack(imgs, axis=0)
-        )
-        image.set_roi(roi=roi, patch=patch, axes_order=("c", "z", "y", "x"))
+            patch = da.expand_dims(img, axis=0)
+            image.set_roi(roi=roi, c=i, patch=patch, axes_order=("c", "z", "y", "x"))
+    logger.info("Finished writing images to OME-Zarr container.")
 
     # Build pyramids, set defaults and set FOV table
     image.consolidate()
@@ -250,6 +244,7 @@ def convert_single_h5_to_ome(
 
     # Set labels if avalable
     if lbl_channels:
+        logger.info("Setting labels for OME-Zarr container...")
         roi_table = ome_zarr_container.get_table("FOV_ROI_table")
         lbl_names = [
             ch.new_label if ch.new_label is not None else ch.label
@@ -273,6 +268,7 @@ def convert_single_h5_to_ome(
                 )
                 label.set_roi(roi=roi, patch=label_img, axes_order=("z", "y", "x"))
             label.consolidate()
+        logger.info("Finished setting labels for OME-Zarr container.")
 
     # Close HDF5 handles now that all computations are scheduled
     for handle in set(h5_handles.values()):
@@ -283,6 +279,7 @@ def convert_single_h5_to_ome(
 
     # Build masking ROI table if masking label is provided
     if masking_label is not None:
+        logger.info(f"Building masking ROI table for label {masking_label}...")
         lbl_names = (
             [
                 ch.new_label if ch.new_label is not None else ch.label
