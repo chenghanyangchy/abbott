@@ -214,7 +214,7 @@
       "tags": [
         "Multiplexing"
       ],
-      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets using the warpfield library.\n- Needs warpfield registration recipe to configure the registration, otherwise applying default registration.\n- Calculates registration transforms e.g. per FOV by providing FOV_ROI_table.\n- Can handle cases where there are more than one embryo / organoid in a FOV if each ROI e.g. embryo / organoid is masked by a linked label (e.g. calculated by`scMultiplex Calculate Object Linking`) and corresponding masking_roi_table.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration (warpfield)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n",
+      "docs_info": "### Purpose\n- **Computes image-based registration** transformations for acquisitions in **HCS** OME-Zarr datasets based on [warpfield](https://github.com/danionella/warpfield).\n- Needs warpfield registration recipe to configure the registration, otherwise applying default registration.\n- Calculates registration transforms e.g. per FOV by providing FOV_ROI_table.\n- Can handle cases where there are more than one embryo / organoid in a FOV if each ROI e.g. embryo / organoid is masked by a linked label (e.g. calculated by`scMultiplex Calculate Object Linking`) and corresponding masking_roi_table.\n- Calculates transformations for **specified regions of interest (ROIs)** and stores the results in a registration subfolder per OME-Zarr image.\n- Typically used as the first task in a workflow, followed by `Apply Registration (warpfield)`.\n\n### Limitations\n- Supports only HCS OME-Zarr datasets, leveraging their acquisition metadata and well-based image grouping.\n- Requires CUDA-compatible GPU with Cuda > 12.x .\n- For **Pelkmans cluster** the following parameters need to be provided manually during Worker Initialisation:\n    ```\n    #SBATCH -p gpu-cuda12\n    export PATH=/usr/local/cuda-12.1/bin:$PATH\n    export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64:$LD_LIBRARY_PATH\n    ```\n",
       "type": "compound",
       "executable_non_parallel": "fractal_tasks/init_registration_hcs.py",
       "executable_parallel": "fractal_tasks/compute_registration_warpfield.py",
@@ -282,10 +282,9 @@
             "description": "Intialization arguments provided by `image_based_registration_hcs_init`. They contain the reference_zarr_url that is used for registration. (standard argument for Fractal tasks, managed by Fractal server)."
           },
           "level": {
-            "default": 0,
             "title": "Level",
             "type": "integer",
-            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution. Currently only level 0 is supported."
+            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution. "
           },
           "wavelength_id": {
             "title": "Wavelength Id",
@@ -318,6 +317,7 @@
         "required": [
           "zarr_url",
           "init_args",
+          "level",
           "wavelength_id"
         ],
         "type": "object",

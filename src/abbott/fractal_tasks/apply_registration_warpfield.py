@@ -80,7 +80,7 @@ def apply_registration_warpfield(
     """
     logger.info(
         f"Running `warpfield_registration` on {zarr_url=}, "
-        f"{roi_table=} and {reference_acquisition=}. "
+        f"{roi_table=}, {reference_acquisition=}, "
         f", {use_masks=}, {masking_label_name=}, "
         f"Using {overwrite_input=} and {output_image_suffix=}"
     )
@@ -363,6 +363,13 @@ def write_registered_zarr(
                         roi=mov_roi,
                         c=ind_ch,
                     ).squeeze()
+
+                # Check if the expected shape and the actual shape match
+                if list(data_mov.shape) != warp_map.mov_shape:
+                    raise ValueError(
+                        f"Expected shape {warp_map.mov_shape}, "
+                        f"got shape {data_mov.shape}"
+                    )
 
                 data_mov_reg = warp_map.apply(data_mov)
 

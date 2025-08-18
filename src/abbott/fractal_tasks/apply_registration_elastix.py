@@ -188,7 +188,7 @@ def apply_registration_elastix(
         else:
             logger.warning(
                 f"{zarr_url} contained a table that is not a standard "
-                "ROI table. The `Apply Registration Warpfield` task is "
+                "ROI table. The `Apply Registration (elastix)` task is "
                 "best used before additional e.g. feature tables are generated."
             )
             new_ome_zarr.add_table(

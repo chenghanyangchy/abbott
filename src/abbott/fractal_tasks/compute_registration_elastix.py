@@ -159,7 +159,7 @@ def compute_registration_elastix(
     if pxl_sizes_zyx_ref_full_res != pxl_sizes_zyx_mov_full_res:
         raise ValueError(
             "Pixel sizes need to be equal between acquisitions "
-            "for warpfield registration."
+            "for elastix registration."
         )
 
     num_ROIs = len(ref_roi_table.rois())
