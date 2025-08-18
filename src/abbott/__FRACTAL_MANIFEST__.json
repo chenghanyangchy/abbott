@@ -284,7 +284,7 @@
           "level": {
             "title": "Level",
             "type": "integer",
-            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution. "
+            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution."
           },
           "wavelength_id": {
             "title": "Wavelength Id",
