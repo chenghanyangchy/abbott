@@ -22,7 +22,7 @@
 | Upsample Label Image | Upsamples label images to the highest image resolution. Useful if segmentation was peformed on e.g. level 1 to avoid resolution mismatch in downstream tasks. |✓|
 
 > [!IMPORTANT]
-> Warpfield Registration Tasks currently only run locally with CUDA > 12.x and not on Pelkmans cluster.
+> Warpfield Registration Tasks currently only run with CUDA > 12.x. See task documentation for instructions on how to run the tasks on the Pelkmans cluster.
 
 ## Installation
 
