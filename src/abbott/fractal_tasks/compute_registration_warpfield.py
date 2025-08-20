@@ -34,7 +34,7 @@ def compute_registration_warpfield(
     level: int,
     wavelength_id: str,
     path_to_registration_recipe: Optional[str] = None,
-    roi_table: str = "FOV_ROI_table",  # TODO: allow "emb_ROI_table"
+    roi_table: str = "FOV_ROI_table",
     use_masks: bool = False,
     masking_label_name: Optional[str] = None,
 ) -> None:
@@ -172,29 +172,28 @@ def compute_registration_warpfield(
 
     num_ROIs = len(ref_roi_table.rois())
     for i_ROI, ref_roi in enumerate(ref_roi_table.rois()):
-        # For masked loading, assumes that i_ROI+1 == label_id of ROI
-        mov_roi = mov_roi_table.rois()[i_ROI]
+        ROI_id = ref_roi.name
         logger.info(
             f"Now processing ROI {i_ROI+1}/{num_ROIs} " f"for {wavelength_id=}."
         )
 
         if use_masks:
             img_ref = ref_images.get_roi_masked(
-                label=i_ROI + 1,
+                label=int(ROI_id),
                 c=channel_index_ref,
             ).squeeze()
             img_mov = mov_images.get_roi_masked(
-                label=i_ROI + 1,
+                label=int(ROI_id),
                 c=channel_index_align,
             ).squeeze()
 
             # Get also full resolution images
             img_ref_full_res = ref_images_full_res.get_roi_masked(
-                label=i_ROI + 1,
+                label=int(ROI_id),
                 c=channel_index_ref,
             ).squeeze()
             img_mov_full_res = mov_images_full_res.get_roi_masked(
-                label=i_ROI + 1,
+                label=int(ROI_id),
                 c=channel_index_align,
             ).squeeze()
 
@@ -220,6 +219,7 @@ def compute_registration_warpfield(
                 roi=ref_roi,
                 c=channel_index_ref,
             ).squeeze()
+            mov_roi = mov_roi_table.get(ROI_id)
             img_mov = mov_images.get_roi(
                 roi=mov_roi,
                 c=channel_index_align,
@@ -262,7 +262,7 @@ def compute_registration_warpfield(
         # Write transform parameter files
         # TODO: Add overwrite check (it overwrites by default)
         # FIXME: Figure out where to put files
-        fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{i_ROI}.json")
+        fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{ROI_id}.json")
 
         if level > 0:
             downsample_factor = 2 * level
@@ -298,11 +298,15 @@ def compute_registration_warpfield(
                 "ref_shape": warp_map.ref_shape,
                 "mov_shape": warp_map.mov_shape,
             }
-        logger.info(f"{warpfield_dict=}")
 
         fn.parent.mkdir(exist_ok=True, parents=True)
         with open(fn, "w") as f:
             json.dump(warpfield_dict, f)
+
+        logger.info(
+            "Finished computing warpfield registration parameters "
+            f"for ROI {ROI_id}, saving to {fn}."
+        )
 
 
 if __name__ == "__main__":

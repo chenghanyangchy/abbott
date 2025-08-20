@@ -74,8 +74,7 @@ def apply_registration_warpfield(
             bounding box of the ROI table. If `use_masks=False`, the whole
             bounding box will be loaded.
         overwrite_input: Whether the old image data should be replaced with the
-            newly registered image data. Currently only implemented for
-            `overwrite_input=True`.
+            newly registered image data.
 
     """
     logger.info(
@@ -313,9 +312,10 @@ def write_registered_zarr(
     # 1. The number of ROIs need to match
     # 2. The size of the ROIs need to match
     # (otherwise, we can't assign them to the reference regions)
-    for i_ROI, mov_roi in enumerate(roi_table_mov.rois()):
+    for mov_roi in roi_table_mov.rois():
         # Load registration parameters
-        fn_pattern = f"{roi_table_name}_roi_{i_ROI}.json"
+        ROI_id = mov_roi.name
+        fn_pattern = f"{roi_table_name}_roi_{ROI_id}.json"
         parameter_path = Path(zarr_url) / "registration"
         parameter_file = sorted(parameter_path.glob(fn_pattern))
         if len(parameter_file) > 1:
@@ -342,11 +342,11 @@ def write_registered_zarr(
             for ind_ch in range(num_channels):
                 if use_masks:
                     data_ref = ref_images.get_roi_masked(
-                        label=i_ROI + 1,
+                        label=int(ROI_id),
                         c=ind_ch,
                     ).squeeze()
                     data_mov = mov_images.get_roi_masked(
-                        label=i_ROI + 1,
+                        label=int(ROI_id),
                         c=ind_ch,
                     ).squeeze()
 
@@ -377,7 +377,7 @@ def write_registered_zarr(
                     # Bring back to original shape
                     data_mov_reg = unpad_array(data_mov_reg, pad_width)
                     new_images.set_roi_masked(
-                        label=i_ROI + 1,
+                        label=int(ROI_id),
                         c=ind_ch,
                         patch=np.expand_dims(data_mov_reg, axis=0),
                     )
@@ -393,10 +393,10 @@ def write_registered_zarr(
         elif axes_list == ["z", "y", "x"]:
             if use_masks:
                 data_ref = ref_images.get_roi_masked(
-                    label=i_ROI + 1,
+                    label=int(ROI_id),
                 )
                 data_mov = mov_images.get_roi_masked(
-                    label=i_ROI + 1,
+                    label=int(ROI_id),
                 )
 
                 # Pad to the same shape
@@ -417,7 +417,7 @@ def write_registered_zarr(
                 # Bring back to original shape
                 data_mov_reg = unpad_array(data_mov_reg, pad_width)
                 new_images.set_roi_masked(
-                    label=i_ROI + 1,
+                    label=int(ROI_id),
                     patch=data_mov_reg,
                 )
 

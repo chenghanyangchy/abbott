@@ -312,7 +312,8 @@ def write_registered_zarr(
     # (otherwise, we can't assign them to the reference regions)
     for i_ROI, mov_roi in enumerate(roi_table_mov.rois()):
         # Load registration parameters
-        fn_pattern = f"{roi_table_name}_roi_{i_ROI}_t*.txt"
+        ROI_id = mov_roi.name
+        fn_pattern = f"{roi_table_name}_roi_{ROI_id}_t*.txt"
         parameter_path = Path(zarr_url) / "registration"
         parameter_files = sorted(parameter_path.glob(fn_pattern))
         parameter_object = load_parameter_files([str(x) for x in parameter_files])
@@ -326,11 +327,11 @@ def write_registered_zarr(
             for ind_ch in range(num_channels):
                 if use_masks:
                     data_ref = ref_images.get_roi_masked(
-                        label=i_ROI + 1,
+                        label=int(ROI_id),
                         c=ind_ch,
                     ).squeeze()
                     data_mov = mov_images.get_roi_masked(
-                        label=i_ROI + 1,
+                        label=int(ROI_id),
                         c=ind_ch,
                     ).squeeze()
 
@@ -376,10 +377,10 @@ def write_registered_zarr(
         elif axes_list == ["z", "y", "x"]:
             if use_masks:
                 data_ref = ref_images.get_roi_masked(
-                    label=i_ROI + 1,
+                    label=int(ROI_id),
                 )
                 data_mov = mov_images.get_roi_masked(
-                    label=i_ROI + 1,
+                    label=int(ROI_id),
                 )
 
                 # Pad to the same shape
@@ -391,7 +392,7 @@ def write_registered_zarr(
                 data_mov = pad_to_max_shape(data_mov, max_shape)
             else:
                 data_mov = mov_images.get_roi(
-                    roi=i_ROI,
+                    roi=mov_roi,
                 )
 
             # Apply the registration
@@ -405,12 +406,12 @@ def write_registered_zarr(
                 # Bring back to original shape
                 data_mov_reg = unpad_array(data_mov_reg, pad_width)
                 new_images.set_roi_masked(
-                    label=i_ROI + 1,
+                    label=int(ROI_id),
                     patch=data_mov_reg,
                 )
             else:
                 new_images.set_roi(
-                    label=i_ROI,
+                    roi=mov_roi,
                     patch=data_mov_reg,
                 )
             new_images.consolidate()
