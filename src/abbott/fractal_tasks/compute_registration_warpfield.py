@@ -170,6 +170,24 @@ def compute_registration_warpfield(
             "for warpfield registration."
         )
 
+    # Load warpfield recipe
+    if path_to_registration_recipe is not None:
+        try:
+            recipe = warpfield.Recipe.from_yaml(path_to_registration_recipe)
+        except Exception as e:
+            raise ValueError(
+                "Failed to load registration recipe from "
+                f"{path_to_registration_recipe}. "
+                "Please check the file path and format."
+            ) from e
+    else:
+        recipe = warpfield.Recipe.from_yaml("default.yml")
+
+    logger.info(
+        f"Start of warpfield registration for {zarr_url=} "
+        f"with registration {recipe=}"
+    )
+
     num_ROIs = len(ref_roi_table.rois())
     for i_ROI, ref_roi in enumerate(ref_roi_table.rois()):
         ROI_id = ref_roi.name
@@ -244,20 +262,29 @@ def compute_registration_warpfield(
                 "different shapes between acquisitions."
             )
 
-        if path_to_registration_recipe is not None:
-            try:
-                recipe = warpfield.Recipe.from_yaml(path_to_registration_recipe)
-            except Exception as e:
-                raise ValueError(
-                    "Failed to load registration recipe from "
-                    f"{path_to_registration_recipe}. "
-                    "Please check the file path and format."
-                ) from e
-        else:
-            recipe = warpfield.Recipe.from_yaml("default.yml")
+        # Adjust block size so that it fits the ROI shape if necessary
+        recipe_adjusted = recipe.model_copy()
+        for i, reg_level in enumerate(recipe_adjusted.levels):
+            block_sizes = reg_level.block_size
+            original_blocksizes = block_sizes.copy()
+
+            for dim, (img_shape, block_size) in enumerate(
+                zip(list(img_mov.shape), block_sizes)
+            ):
+                if img_shape < block_size:  # adjust if necessary
+                    block_sizes[dim] = img_shape
+
+            # Only apply change if blocksize was modified
+            if block_sizes != original_blocksizes:
+                logger.warning(
+                    f"Blocksize {original_blocksizes} too large for ROI "
+                    f"of shape {img_mov.shape}. "
+                    f"Decreased blocksize of level {i} to {block_sizes}."
+                )
+                recipe_adjusted.levels[i].block_size = block_sizes
 
         # Start registration
-        _, warp_map, _ = warpfield.register_volumes(img_ref, img_mov, recipe)
+        _, warp_map, _ = warpfield.register_volumes(img_ref, img_mov, recipe_adjusted)
 
         # Write transform parameter files
         # TODO: Add overwrite check (it overwrites by default)
@@ -305,7 +332,7 @@ def compute_registration_warpfield(
 
         logger.info(
             "Finished computing warpfield registration parameters "
-            f"for ROI {ROI_id}, saving to {fn}."
+            f"for ROI {ROI_id}, saving params to {fn}."
         )
 
 
