@@ -392,20 +392,24 @@ def write_registered_zarr(
                     data_ref = ref_images.get_roi_masked(
                         label=int(ROI_id),
                         c=ind_ch,
+                        mode="dask",
                     ).squeeze()
                     data_mov = mov_images.get_roi_masked(
                         label=int(ROI_id),
                         c=ind_ch,
+                        mode="dask",
                     ).squeeze()
 
                 else:
                     data_ref = ref_images.get_roi(
                         roi=ref_roi,
                         c=ind_ch,
+                        mode="dask",
                     ).squeeze()
                     data_mov = mov_images.get_roi(
                         roi=mov_roi,
                         c=ind_ch,
+                        mode="dask",
                     ).squeeze()
 
                 # Pad to the same shape
@@ -423,6 +427,7 @@ def write_registered_zarr(
                         f"got shape {data_mov.shape}"
                     )
 
+                data_mov = data_mov.compute()
                 data_mov_reg = warp_map.apply(data_mov)
                 data_mov_reg = data_mov_reg.astype(dtype)  # warpfield returns float32
 
@@ -448,14 +453,17 @@ def write_registered_zarr(
             if use_masks:
                 data_ref = ref_images.get_roi_masked(
                     label=int(ROI_id),
+                    mode="dask",
                 )
                 data_mov = mov_images.get_roi_masked(
                     label=int(ROI_id),
+                    mode="dask",
                 )
 
             else:
                 data_mov = mov_images.get_roi(
                     roi=mov_roi,
+                    mode="dask",
                 )
 
             # Pad to the same shape
@@ -465,6 +473,7 @@ def write_registered_zarr(
             pad_width = get_pad_width(data_ref.shape, max_shape)
             data_mov = pad_to_max_shape(data_mov, max_shape)
 
+            data_mov = data_mov.compute()
             data_mov_reg = warp_map.apply(data_mov)
             data_mov_reg = data_mov_reg.astype(dtype)  # warpfield returns float32
             # Bring back to original shape

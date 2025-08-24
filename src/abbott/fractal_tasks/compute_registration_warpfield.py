@@ -108,9 +108,6 @@ def compute_registration_warpfield(
     ref_images = ome_zarr_ref.get_image(path=str(level))
     mov_images = ome_zarr_mov.get_image(path=str(level))
 
-    ref_images_full_res = ome_zarr_ref.get_image(path="0")
-    mov_images_full_res = ome_zarr_mov.get_image(path="0")
-
     # Read ROIs
     ref_roi_table = ome_zarr_ref.get_table(roi_table)
     mov_roi_table = ome_zarr_mov.get_table(roi_table)
@@ -142,18 +139,6 @@ def compute_registration_warpfield(
             path=str(level),
         )
 
-        # Get also at highest resolution
-        ref_images_full_res = ome_zarr_ref.get_masked_image(
-            masking_label_name=masking_label_name,
-            masking_table_name=roi_table,
-            path="0",
-        )
-        mov_images_full_res = ome_zarr_mov.get_masked_image(
-            masking_label_name=masking_label_name,
-            masking_table_name=roi_table,
-            path="0",
-        )
-
     logger.info(
         f"Found {len(ref_roi_table.rois())} ROIs in {roi_table=} to be processed."
     )
@@ -169,10 +154,10 @@ def compute_registration_warpfield(
         )
 
     # Read full-res pixel sizes from zarr attributes
-    pxl_sizes_zyx_ref_full_res = ref_images_full_res.pixel_size.zyx
-    pxl_sizes_zyx_mov_full_res = mov_images_full_res.pixel_size.zyx
+    pxl_sizes_zyx_ref = ref_images.pixel_size.zyx
+    pxl_sizes_zyx_mov = mov_images.pixel_size.zyx
 
-    if pxl_sizes_zyx_ref_full_res != pxl_sizes_zyx_mov_full_res:
+    if pxl_sizes_zyx_ref != pxl_sizes_zyx_mov:
         raise ValueError(
             "Pixel sizes need to be equal between acquisitions "
             "for warpfield registration."
@@ -207,41 +192,25 @@ def compute_registration_warpfield(
             img_ref = ref_images.get_roi_masked(
                 label=int(ROI_id),
                 c=channel_index_ref,
+                mode="dask",
             ).squeeze()
             img_mov = mov_images.get_roi_masked(
                 label=int(ROI_id),
                 c=channel_index_align,
-            ).squeeze()
-
-            # Get also full resolution images
-            img_ref_full_res = ref_images_full_res.get_roi_masked(
-                label=int(ROI_id),
-                c=channel_index_ref,
-            ).squeeze()
-            img_mov_full_res = mov_images_full_res.get_roi_masked(
-                label=int(ROI_id),
-                c=channel_index_align,
+                mode="dask",
             ).squeeze()
 
         else:
             img_ref = ref_images.get_roi(
                 roi=ref_roi,
                 c=channel_index_ref,
+                mode="dask",
             ).squeeze()
             mov_roi = mov_roi_table.get(ROI_id)
             img_mov = mov_images.get_roi(
                 roi=mov_roi,
                 c=channel_index_align,
-            ).squeeze()
-
-            # Get also full resolution images
-            img_ref_full_res = ref_images_full_res.get_roi(
-                roi=ref_roi,
-                c=channel_index_ref,
-            ).squeeze()
-            img_mov_full_res = mov_images_full_res.get_roi(
-                roi=mov_roi,
-                c=channel_index_align,
+                mode="dask",
             ).squeeze()
 
         # Pad images to the same shape
@@ -249,17 +218,9 @@ def compute_registration_warpfield(
         max_shape = tuple(
             max(r, m) for r, m in zip(img_ref.shape, img_mov.shape, strict=False)
         )
-        max_shape_full_res = tuple(
-            max(r, m)
-            for r, m in zip(
-                img_ref_full_res.shape, img_mov_full_res.shape, strict=False
-            )
-        )
+
         img_ref = pad_to_max_shape(img_ref, max_shape)
         img_mov = pad_to_max_shape(img_mov, max_shape)
-
-        img_ref_full_res = pad_to_max_shape(img_ref_full_res, max_shape_full_res)
-        img_mov_full_res = pad_to_max_shape(img_mov_full_res, max_shape_full_res)
 
         ##############
         #  Calculate the transformation
@@ -309,28 +270,6 @@ def compute_registration_warpfield(
         # Write transform parameter files
         fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{ROI_id}.h5")
         fn.parent.mkdir(exist_ok=True, parents=True)
-
-        # TODO: Figure out resizing of warpmap for level > 0 bug
-        # if level > 0:
-        #     ds_z, ds_yx = 1, 2 ** level # get coarsening from ngio metadata
-        #     resize_dict = {
-        #         "warp_field_shape": warp_map.warp_field.shape,
-        #         "block_size": [
-        #             warp_map.block_size.tolist()[0] * ds_z,
-        #             warp_map.block_size.tolist()[1] * ds_yx,
-        #             warp_map.block_size.tolist()[2] * ds_yx,
-        #         ],
-        #         "block_stride": [
-        #             warp_map.block_stride.tolist()[0] * ds_z,
-        #             warp_map.block_stride.tolist()[1] * ds_yx,
-        #             warp_map.block_stride.tolist()[2] * ds_yx,
-        #         ],
-        #     }
-        #     lvl0_warp_map = warp_map.resize_to(resize_dict)
-        #     lvl0_warp_map.ref_shape = img_ref_full_res.shape
-        #     lvl0_warp_map.mov_shape = img_mov_full_res.shape
-        #     lvl0_warp_map.to_h5(fn)
-        # else:
 
         warp_map.to_h5(fn)
 
