@@ -10,7 +10,6 @@
 # Zurich.
 """Computes and applies warpfield registration."""
 
-import json
 import logging
 import os
 import shutil
@@ -46,6 +45,7 @@ def apply_registration_warpfield(
     zarr_url: str,
     # Core parameters
     reference_acquisition: int = 0,
+    level: int = 0,
     output_image_suffix: str = "registered",
     roi_table: str,
     use_masks: bool = False,
@@ -60,6 +60,9 @@ def apply_registration_warpfield(
         reference_acquisition: Which acquisition to register against. Uses the
             OME-NGFF HCS well metadata acquisition keys to find the reference
             acquisition.
+        level: Which resolution level to apply the registration on. Must match
+            the level that was used during computation of the registration.
+            Currently, only level 0 is supported.
         output_image_suffix: Name of the output image suffix. E.g. "registered".
         roi_table: Name of the ROI table which has been used during computation of
             registration.
@@ -83,6 +86,11 @@ def apply_registration_warpfield(
         f", {use_masks=}, {masking_label_name=}, "
         f"Using {overwrite_input=} and {output_image_suffix=}"
     )
+
+    if level != 0:
+        raise NotImplementedError(
+            "Currently, only level=0 is supported for warpfield registration."
+        )
 
     well_url, old_img_path = _split_well_path_image_path(zarr_url)
     new_zarr_url = f"{well_url}/{zarr_url.split('/')[-1]}_{output_image_suffix}"
@@ -123,7 +131,7 @@ def apply_registration_warpfield(
             image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
 
         else:
-            shutil.copytree(zarr_url, new_zarr_url)
+            shutil.copytree(zarr_url, new_zarr_url, dirs_exist_ok=True)
             image_list_updates = dict(
                 image_list_updates=[
                     dict(
@@ -174,6 +182,7 @@ def apply_registration_warpfield(
     write_registered_zarr(
         zarr_url=zarr_url,
         reference_zarr_url=reference_zarr_url,
+        level=level,
         new_zarr_url=new_zarr_url,
         roi_table_name=roi_table,
         ome_zarr_mov=ome_zarr_mov,
@@ -191,7 +200,7 @@ def apply_registration_warpfield(
     if label_list:
         logger.warning(
             "Skipping registration of labels ... Label registration "
-            "has not been implemented."
+            "is not implemented."
         )
 
     ####################
@@ -263,6 +272,7 @@ def apply_registration_warpfield(
 def write_registered_zarr(
     zarr_url: str,
     reference_zarr_url: str,
+    level: int,
     new_zarr_url: str,
     roi_table_name: str,
     ome_zarr_mov: OmeZarrContainer,
@@ -284,6 +294,8 @@ def write_registered_zarr(
             the basis for the new OME-Zarr image.
         reference_zarr_url: Path or url to the individual OME-Zarr image that
             was used as the reference for the registration.
+        level: Which resolution level to apply the registration on. Must match
+            the level that was used during computation of the registration.
         new_zarr_url: Path or url to the new OME-Zarr image to be written
         roi_table_name: Name of the ROI table which has been used during
             computation of registration parameters.
@@ -308,7 +320,7 @@ def write_registered_zarr(
     # table/label from reference (if use_masks)
     ome_zarr_new = ome_zarr_mov.derive_image(
         store=new_zarr_url,
-        ref_path="0",
+        ref_path=str(level),
         copy_labels=False,
         copy_tables=False,
         overwrite=True,
@@ -318,7 +330,7 @@ def write_registered_zarr(
     if use_masks:
         # Get reference masking label
         new_label = ome_zarr_new.derive_label(masking_label_name, overwrite=True)
-        ref_masking_label = ome_zarr_ref.get_label(masking_label_name, path="0")
+        ref_masking_label = ome_zarr_ref.get_label(masking_label_name, path=str(level))
         ref_masking_label = ref_masking_label.get_array(mode="dask")
         new_label.set_array(ref_masking_label)
         new_label.consolidate()
@@ -326,20 +338,25 @@ def write_registered_zarr(
         ref_images = ome_zarr_ref.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
+            path=str(level),
         )
+        dtype = ref_images.dtype
         mov_images = ome_zarr_mov.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
+            path=str(level),
         )
         new_images = ome_zarr_new.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
+            path=str(level),
         )
 
     else:
-        ref_images = ome_zarr_ref.get_image()
-        mov_images = ome_zarr_mov.get_image()
-        new_images = ome_zarr_new.get_image()
+        ref_images = ome_zarr_ref.get_image(path=str(level))
+        dtype = ref_images.dtype
+        mov_images = ome_zarr_mov.get_image(path=str(level))
+        new_images = ome_zarr_new.get_image(path=str(level))
 
     roi_table_mov = ome_zarr_mov.get_table(roi_table_name)
     roi_table_ref = ome_zarr_ref.get_table(roi_table_name)
@@ -348,11 +365,13 @@ def write_registered_zarr(
     # 1. The number of ROIs need to match
     # 2. The size of the ROIs need to match
     # (otherwise, we can't assign them to the reference regions)
-    for ref_roi in roi_table_ref.rois():
-        mov_roi = roi_table_mov.get(ref_roi.name)
-        # Load registration parameters
+    num_ROIs = len(ref_roi_table.rois())
+    for i, ref_roi in enumerate(roi_table_ref.rois()):
+        logger.info(f"Now applying registration to ROI {i+1}/{num_ROIs} ")
         ROI_id = ref_roi.name
-        fn_pattern = f"{roi_table_name}_roi_{ROI_id}.json"
+        mov_roi = roi_table_mov.get(ROI_id)
+        # Load registration parameters
+        fn_pattern = f"{roi_table_name}_roi_{ROI_id}.h5"
         parameter_path = Path(zarr_url) / "registration"
         parameter_file = sorted(parameter_path.glob(fn_pattern))
         if len(parameter_file) > 1:
@@ -361,16 +380,8 @@ def write_registered_zarr(
                 f"{fn_pattern} in {parameter_path}. "
                 "Please ensure there is only one file per ROI."
             )
-        with open(parameter_file[0]) as f:
-            warp_map_dict = json.load(f)
 
-        warp_map = warpfield.register.WarpMap(
-            warp_field=np.array(warp_map_dict["warp_field"]),
-            block_size=np.array(warp_map_dict["block_size"]),
-            block_stride=np.array(warp_map_dict["block_stride"]),
-            ref_shape=warp_map_dict["ref_shape"],
-            mov_shape=warp_map_dict["mov_shape"],
-        )
+        warp_map = warpfield.register.WarpMap.from_h5(parameter_file[0])
 
         axes_list = mov_images.meta.axes_mapper.on_disk_axes_names
         if axes_list == ["c", "z", "y", "x"]:
@@ -387,32 +398,38 @@ def write_registered_zarr(
                         c=ind_ch,
                     ).squeeze()
 
-                    # Pad to the same shape
-                    max_shape = tuple(
-                        max(r, m)
-                        for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
-                    )
-                    pad_width = get_pad_width(data_ref.shape, max_shape)
-                    data_mov = pad_to_max_shape(data_mov, max_shape)
-
                 else:
+                    data_ref = ref_images.get_roi(
+                        roi=ref_roi,
+                        c=ind_ch,
+                    ).squeeze()
                     data_mov = mov_images.get_roi(
                         roi=mov_roi,
                         c=ind_ch,
                     ).squeeze()
 
+                # Pad to the same shape
+                max_shape = tuple(
+                    max(r, m)
+                    for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
+                )
+                pad_width = get_pad_width(data_ref.shape, max_shape)
+                data_mov = pad_to_max_shape(data_mov, max_shape)
+
                 # Check if the expected shape and the actual shape match
-                if list(data_mov.shape) != warp_map.mov_shape:
+                if data_mov.shape != warp_map.mov_shape:
                     raise ValueError(
                         f"Expected shape {warp_map.mov_shape}, "
                         f"got shape {data_mov.shape}"
                     )
 
                 data_mov_reg = warp_map.apply(data_mov)
+                data_mov_reg = data_mov_reg.astype(dtype)  # warpfield returns float32
+
+                # Bring back to original shape
+                data_mov_reg = unpad_array(data_mov_reg, pad_width)
 
                 if use_masks:
-                    # Bring back to original shape
-                    data_mov_reg = unpad_array(data_mov_reg, pad_width)
                     new_images.set_roi_masked(
                         label=int(ROI_id),
                         c=ind_ch,
@@ -436,23 +453,24 @@ def write_registered_zarr(
                     label=int(ROI_id),
                 )
 
-                # Pad to the same shape
-                max_shape = tuple(
-                    max(r, m)
-                    for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
-                )
-                pad_width = get_pad_width(data_ref.shape, max_shape)
-                data_mov = pad_to_max_shape(data_mov, max_shape)
             else:
                 data_mov = mov_images.get_roi(
                     roi=mov_roi,
                 )
 
+            # Pad to the same shape
+            max_shape = tuple(
+                max(r, m) for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
+            )
+            pad_width = get_pad_width(data_ref.shape, max_shape)
+            data_mov = pad_to_max_shape(data_mov, max_shape)
+
             data_mov_reg = warp_map.apply(data_mov)
+            data_mov_reg = data_mov_reg.astype(dtype)  # warpfield returns float32
+            # Bring back to original shape
+            data_mov_reg = unpad_array(data_mov_reg, pad_width)
 
             if use_masks:
-                # Bring back to original shape
-                data_mov_reg = unpad_array(data_mov_reg, pad_width)
                 new_images.set_roi_masked(
                     label=int(ROI_id),
                     patch=data_mov_reg,

@@ -10,7 +10,6 @@
 # Zurich.
 """Calculates registration for image-based registration."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -34,6 +33,7 @@ def compute_registration_warpfield(
     level: int,
     wavelength_id: str,
     path_to_registration_recipe: Optional[str] = None,
+    save_reg_video: bool = False,
     roi_table: str = "FOV_ROI_table",
     use_masks: bool = False,
     masking_label_name: Optional[str] = None,
@@ -44,7 +44,8 @@ def compute_registration_warpfield(
 
     1. Loading the images of a given ROI (=> loop over ROIs)
     2. Calculating the transformation for that ROI
-    3. Storing the calculated transformation in the ROI table
+    3. Storing the calculated transformation in the registration folder of the
+       moving acquisition.
 
     Args:
         zarr_url: Path or url to the individual OME-Zarr image to be processed.
@@ -54,12 +55,14 @@ def compute_registration_warpfield(
             reference_zarr_url that is used for registration.
             (standard argument for Fractal tasks, managed by Fractal server).
         level: Pyramid level of the image to be used for registration.
-            Choose `0` to process at full resolution.
+            Currently, only level 0 is supported.
         wavelength_id: Wavelength that will be used for image-based
             registration; e.g. `A01_C01` for Yokogawa, `C01` for MD.
         path_to_registration_recipe: Path to the warpfield .yml registration recipe.
             This parameter is optional, if not provided, the default .yml recipe
             will be used.
+        save_reg_video: If `True`, saves the video showing the registration in
+            registration folder. Default: `False`.
         roi_table: Name of the ROI table over which the task loops to
             calculate the registration. Examples: `FOV_ROI_table` => loop over
             the field of views, `well_ROI_table` => process the whole well as
@@ -82,6 +85,11 @@ def compute_registration_warpfield(
         f"Calculating warpfield registration per {roi_table=} for "
         f"{wavelength_id=}."
     )
+
+    if level != 0:
+        raise NotImplementedError(
+            "Currently, only level=0 is supported for warpfield registration."
+        )
 
     reference_zarr_url = init_args.reference_zarr_url
 
@@ -161,8 +169,8 @@ def compute_registration_warpfield(
         )
 
     # Read full-res pixel sizes from zarr attributes
-    pxl_sizes_zyx_ref_full_res = ome_zarr_ref.get_image(path="0").pixel_size.zyx
-    pxl_sizes_zyx_mov_full_res = ome_zarr_mov.get_image(path="0").pixel_size.zyx
+    pxl_sizes_zyx_ref_full_res = ref_images_full_res.pixel_size.zyx
+    pxl_sizes_zyx_mov_full_res = mov_images_full_res.pixel_size.zyx
 
     if pxl_sizes_zyx_ref_full_res != pxl_sizes_zyx_mov_full_res:
         raise ValueError(
@@ -215,23 +223,6 @@ def compute_registration_warpfield(
                 c=channel_index_align,
             ).squeeze()
 
-            # Pad images to the same shape
-            # Calculate maximum dimensions needed
-            max_shape = tuple(
-                max(r, m) for r, m in zip(img_ref.shape, img_mov.shape, strict=False)
-            )
-            max_shape_full_res = tuple(
-                max(r, m)
-                for r, m in zip(
-                    img_ref_full_res.shape, img_mov_full_res.shape, strict=False
-                )
-            )
-            img_ref = pad_to_max_shape(img_ref, max_shape)
-            img_mov = pad_to_max_shape(img_mov, max_shape)
-
-            img_ref_full_res = pad_to_max_shape(img_ref_full_res, max_shape_full_res)
-            img_mov_full_res = pad_to_max_shape(img_mov_full_res, max_shape_full_res)
-
         else:
             img_ref = ref_images.get_roi(
                 roi=ref_roi,
@@ -253,15 +244,26 @@ def compute_registration_warpfield(
                 c=channel_index_align,
             ).squeeze()
 
+        # Pad images to the same shape
+        # Calculate maximum dimensions needed
+        max_shape = tuple(
+            max(r, m) for r, m in zip(img_ref.shape, img_mov.shape, strict=False)
+        )
+        max_shape_full_res = tuple(
+            max(r, m)
+            for r, m in zip(
+                img_ref_full_res.shape, img_mov_full_res.shape, strict=False
+            )
+        )
+        img_ref = pad_to_max_shape(img_ref, max_shape)
+        img_mov = pad_to_max_shape(img_mov, max_shape)
+
+        img_ref_full_res = pad_to_max_shape(img_ref_full_res, max_shape_full_res)
+        img_mov_full_res = pad_to_max_shape(img_mov_full_res, max_shape_full_res)
+
         ##############
         #  Calculate the transformation
         ##############
-        if img_ref.shape != img_mov.shape:
-            raise NotImplementedError(
-                "This registration is not implemented for ROIs with "
-                "different shapes between acquisitions."
-            )
-
         # Adjust block size so that it fits the ROI shape if necessary
         recipe_adjusted = recipe.model_copy()
         for i, reg_level in enumerate(recipe_adjusted.levels):
@@ -284,51 +286,53 @@ def compute_registration_warpfield(
                 recipe_adjusted.levels[i].block_size = block_sizes
 
         # Start registration
-        _, warp_map, _ = warpfield.register_volumes(img_ref, img_mov, recipe_adjusted)
+        pixel_sizes_zyx = ome_zarr_ref.get_image(path=str(level)).pixel_size.zyx
+        callback = warpfield.utils.mips_callback(units_per_voxel=pixel_sizes_zyx)
+
+        # Check if registration video should be saved
+        video_path = None
+        if save_reg_video:
+            video_path = (
+                Path(zarr_url) / "registration" / f"registration_roi_{ROI_id}.mp4"
+            )
+            video_path.parent.mkdir(exist_ok=True, parents=True)
+            video_path = video_path.as_posix()
+
+        _, warp_map, _ = warpfield.register_volumes(
+            img_ref,
+            img_mov,
+            recipe_adjusted,
+            callback=callback,
+            video_path=video_path,
+        )
 
         # Write transform parameter files
-        # TODO: Add overwrite check (it overwrites by default)
-        # FIXME: Figure out where to put files
-        fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{ROI_id}.json")
-
-        if level > 0:
-            downsample_factor = 2 * level
-            resize_dict = {
-                "warp_field_shape": warp_map.warp_field.shape,
-                "block_size": [
-                    warp_map.block_size.tolist()[0],
-                    warp_map.block_size.tolist()[1] * downsample_factor,
-                    warp_map.block_size.tolist()[2] * downsample_factor,
-                ],
-                "block_stride": [
-                    warp_map.block_stride.tolist()[0],
-                    warp_map.block_stride.tolist()[1] * downsample_factor,
-                    warp_map.block_stride.tolist()[2] * downsample_factor,
-                ],
-            }
-            lvl0_warp_map = warp_map.resize_to(resize_dict)
-            lvl0_warp_map.ref_shape = img_ref_full_res.shape
-            lvl0_warp_map.mov_shape = img_mov_full_res.shape
-
-            warpfield_dict = {
-                "warp_field": lvl0_warp_map.warp_field.tolist(),
-                "block_size": lvl0_warp_map.block_size.tolist(),
-                "block_stride": lvl0_warp_map.block_stride.tolist(),
-                "ref_shape": lvl0_warp_map.ref_shape,
-                "mov_shape": lvl0_warp_map.mov_shape,
-            }
-        else:
-            warpfield_dict = {
-                "warp_field": warp_map.warp_field.tolist(),
-                "block_size": warp_map.block_size.tolist(),
-                "block_stride": warp_map.block_stride.tolist(),
-                "ref_shape": warp_map.ref_shape,
-                "mov_shape": warp_map.mov_shape,
-            }
-
+        fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{ROI_id}.h5")
         fn.parent.mkdir(exist_ok=True, parents=True)
-        with open(fn, "w") as f:
-            json.dump(warpfield_dict, f)
+
+        # TODO: Figure out resizing of warpmap for level > 0 bug
+        # if level > 0:
+        #     ds_z, ds_yx = 1, 2 ** level # get coarsening from ngio metadata
+        #     resize_dict = {
+        #         "warp_field_shape": warp_map.warp_field.shape,
+        #         "block_size": [
+        #             warp_map.block_size.tolist()[0] * ds_z,
+        #             warp_map.block_size.tolist()[1] * ds_yx,
+        #             warp_map.block_size.tolist()[2] * ds_yx,
+        #         ],
+        #         "block_stride": [
+        #             warp_map.block_stride.tolist()[0] * ds_z,
+        #             warp_map.block_stride.tolist()[1] * ds_yx,
+        #             warp_map.block_stride.tolist()[2] * ds_yx,
+        #         ],
+        #     }
+        #     lvl0_warp_map = warp_map.resize_to(resize_dict)
+        #     lvl0_warp_map.ref_shape = img_ref_full_res.shape
+        #     lvl0_warp_map.mov_shape = img_mov_full_res.shape
+        #     lvl0_warp_map.to_h5(fn)
+        # else:
+
+        warp_map.to_h5(fn)
 
         logger.info(
             "Finished computing warpfield registration parameters "

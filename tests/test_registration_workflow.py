@@ -207,51 +207,12 @@ def test_registration_workflow_masked(test_data_dir):
 #         overwrite_input=False,
 #     )
 
-# def test_registration_workflow_warpfield_varying_levels(test_data_dir):
-#     # Task-specific arguments
-#     wavelength_id = "A01_C01"
-#     roi_table = "FOV_ROI_table"
-#     level = 2
-#     reference_acquisition = 2
-#     path_to_registration_recipe = str(Path(__file__).parent / "data/default.yml")
-#     zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
-
-#     parallelization_list = init_registration_hcs(
-#         zarr_urls=zarr_urls,
-#         zarr_dir="",
-#         reference_acquisition=reference_acquisition,
-#     )["parallelization_list"]
-
-#     for param in parallelization_list:
-#         compute_registration_warpfield(
-#             zarr_url=param["zarr_url"],
-#             init_args=param["init_args"],
-#             wavelength_id=wavelength_id,
-#             path_to_registration_recipe=path_to_registration_recipe,
-#             roi_table=roi_table,
-#             use_masks=False,
-#             masking_label_name=None,
-#             level=level,
-#         )
-
-#     # Test zarr_url that needs to be registered
-#     for zarr_url in zarr_urls:
-#         apply_registration_warpfield(
-#             zarr_url=zarr_url,
-#             roi_table=roi_table,
-#             reference_acquisition=reference_acquisition,
-#             output_image_suffix="registered",
-#             use_masks=False,
-#             masking_label_name=None,
-#             overwrite_input=True,
-#         )
-
 # def test_registration_workflow_warpfield_masked(test_data_dir):
 #     # Task-specific arguments
 #     wavelength_id = "A01_C01"
 #     label_name = "emb_linked"
 #     roi_table = "emb_ROI_table_2_linked"
-#     level = 2
+#     level = 0
 #     reference_acquisition = 2
 #     path_to_registration_recipe = str(Path(__file__).parent / "data/default.yml")
 #     zarr_urls = [f"{test_data_dir}/B/03/0", f"{test_data_dir}/B/03/1"]
@@ -280,6 +241,7 @@ def test_registration_workflow_masked(test_data_dir):
 #             zarr_url=zarr_url,
 #             roi_table=roi_table,
 #             reference_acquisition=reference_acquisition,
+#             level=level,
 #             output_image_suffix="registered_masked",
 #             use_masks=True,
 #             masking_label_name=label_name,

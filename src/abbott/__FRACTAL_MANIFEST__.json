@@ -289,7 +289,7 @@
           "level": {
             "title": "Level",
             "type": "integer",
-            "description": "Pyramid level of the image to be used for registration. Choose `0` to process at full resolution."
+            "description": "Pyramid level of the image to be used for registration. Currently, only level 0 is supported."
           },
           "wavelength_id": {
             "title": "Wavelength Id",
@@ -300,6 +300,12 @@
             "title": "Path To Registration Recipe",
             "type": "string",
             "description": "Path to the warpfield .yml registration recipe. This parameter is optional, if not provided, the default .yml recipe will be used."
+          },
+          "save_reg_video": {
+            "default": false,
+            "title": "Save Reg Video",
+            "type": "boolean",
+            "description": "If `True`, saves the video showing the registration in registration folder. Default: `False`."
           },
           "roi_table": {
             "default": "FOV_ROI_table",
@@ -366,6 +372,12 @@
             "title": "Reference Acquisition",
             "type": "integer",
             "description": "Which acquisition to register against. Uses the OME-NGFF HCS well metadata acquisition keys to find the reference acquisition."
+          },
+          "level": {
+            "default": 0,
+            "title": "Level",
+            "type": "integer",
+            "description": "Which resolution level to apply the registration on. Must match the level that was used during computation of the registration. Currently, only level 0 is supported."
           },
           "output_image_suffix": {
             "default": "registered",

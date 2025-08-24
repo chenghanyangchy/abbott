@@ -129,7 +129,7 @@ def apply_registration_elastix(
             image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
 
         else:
-            shutil.copytree(zarr_url, new_zarr_url)
+            shutil.copytree(zarr_url, new_zarr_url, dirs_exist_ok=True)
             image_list_updates = dict(
                 image_list_updates=[
                     dict(
