@@ -289,7 +289,7 @@
           "level": {
             "title": "Level",
             "type": "integer",
-            "description": "Pyramid level of the image to be used for registration. Currently, only level 0 is supported."
+            "description": "Pyramid level of the image to be used for registration."
           },
           "wavelength_id": {
             "title": "Wavelength Id",
@@ -323,6 +323,12 @@
             "title": "Masking Label Name",
             "type": "string",
             "description": "Optional label for masking ROI e.g. `embryo`."
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean",
+            "description": "If `True`, overwrite existing registration files. Default: `False`."
           }
         },
         "required": [
@@ -377,7 +383,7 @@
             "default": 0,
             "title": "Level",
             "type": "integer",
-            "description": "Which resolution level to apply the registration on. Must match the level that was used during computation of the registration. Currently, only level 0 is supported."
+            "description": "Which resolution level to apply the registration on. Must match the level that was used during computation of the registration."
           },
           "output_image_suffix": {
             "default": "registered",

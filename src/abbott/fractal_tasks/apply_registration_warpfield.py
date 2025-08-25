@@ -62,7 +62,6 @@ def apply_registration_warpfield(
             acquisition.
         level: Which resolution level to apply the registration on. Must match
             the level that was used during computation of the registration.
-            Currently, only level 0 is supported.
         output_image_suffix: Name of the output image suffix. E.g. "registered".
         roi_table: Name of the ROI table which has been used during computation of
             registration.
@@ -86,11 +85,6 @@ def apply_registration_warpfield(
         f", {use_masks=}, {masking_label_name=}, "
         f"Using {overwrite_input=} and {output_image_suffix=}"
     )
-
-    if level != 0:
-        raise NotImplementedError(
-            "Currently, only level=0 is supported for warpfield registration."
-        )
 
     well_url, old_img_path = _split_well_path_image_path(zarr_url)
     new_zarr_url = f"{well_url}/{zarr_url.split('/')[-1]}_{output_image_suffix}"
@@ -127,11 +121,34 @@ def apply_registration_warpfield(
             "Skipping registration for the reference acquisition. "
             "Using the original data as registered data."
         )
+        ome_zarr_ref = open_ome_zarr_container(reference_zarr_url)
+        ome_zarr_new = ome_zarr_ref.derive_image(
+            store=new_zarr_url,
+            ref_path=str(level),
+            copy_labels=True,
+            copy_tables=True,
+            overwrite=True,
+        )
+        images = ome_zarr_ref.get_image(path=str(level))
+        images_new = ome_zarr_new.get_image(path="0")
+        images_new.set_array(images.get_array(mode="dask"))
+        images_new.consolidate()
+
         if overwrite_input:
+            logger.info("Replace original zarr image with the newly created Zarr image")
+            # Potential for race conditions: Every acquisition reads the
+            # reference acquisition, but the reference acquisition also gets
+            # modified
+            # See issue #516 for the details
+            os.rename(zarr_url, f"{zarr_url}_tmp")
+            os.rename(new_zarr_url, zarr_url)
+            shutil.rmtree(f"{zarr_url}_tmp")
+            image_list_updates = dict(
+                image_list_updates=[dict(zarr_url=zarr_url, registered=True)]
+            )
             image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
 
         else:
-            shutil.copytree(zarr_url, new_zarr_url, dirs_exist_ok=True)
             image_list_updates = dict(
                 image_list_updates=[
                     dict(
@@ -349,14 +366,14 @@ def write_registered_zarr(
         new_images = ome_zarr_new.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path=str(level),
+            path="0",
         )
 
     else:
         ref_images = ome_zarr_ref.get_image(path=str(level))
         dtype = ref_images.dtype
         mov_images = ome_zarr_mov.get_image(path=str(level))
-        new_images = ome_zarr_new.get_image(path=str(level))
+        new_images = ome_zarr_new.get_image(path="0")
 
     roi_table_mov = ome_zarr_mov.get_table(roi_table_name)
     roi_table_ref = ome_zarr_ref.get_table(roi_table_name)
@@ -371,7 +388,7 @@ def write_registered_zarr(
         ROI_id = ref_roi.name
         mov_roi = roi_table_mov.get(ROI_id)
         # Load registration parameters
-        fn_pattern = f"{roi_table_name}_roi_{ROI_id}.h5"
+        fn_pattern = f"{roi_table_name}_roi_{ROI_id}_lvl_{level}.h5"
         parameter_path = Path(zarr_url) / "registration"
         parameter_file = sorted(parameter_path.glob(fn_pattern))
         if len(parameter_file) > 1:

@@ -37,6 +37,7 @@ def compute_registration_warpfield(
     roi_table: str = "FOV_ROI_table",
     use_masks: bool = False,
     masking_label_name: Optional[str] = None,
+    overwrite: bool = False,
 ) -> None:
     """Calculate warpfield registration based on images
 
@@ -55,7 +56,6 @@ def compute_registration_warpfield(
             reference_zarr_url that is used for registration.
             (standard argument for Fractal tasks, managed by Fractal server).
         level: Pyramid level of the image to be used for registration.
-            Currently, only level 0 is supported.
         wavelength_id: Wavelength that will be used for image-based
             registration; e.g. `A01_C01` for Yokogawa, `C01` for MD.
         path_to_registration_recipe: Path to the warpfield .yml registration recipe.
@@ -72,6 +72,8 @@ def compute_registration_warpfield(
             loading is relevant when only a subset of the bounding box should
             actually be processed (e.g. running within `embryo_ROI_table`).
         masking_label_name: Optional label for masking ROI e.g. `embryo`.
+        overwrite: If `True`, overwrite existing registration files.
+            Default: `False`.
     """
     try:
         import warpfield
@@ -85,11 +87,6 @@ def compute_registration_warpfield(
         f"Calculating warpfield registration per {roi_table=} for "
         f"{wavelength_id=}."
     )
-
-    if level != 0:
-        raise NotImplementedError(
-            "Currently, only level=0 is supported for warpfield registration."
-        )
 
     reference_zarr_url = init_args.reference_zarr_url
 
@@ -268,9 +265,17 @@ def compute_registration_warpfield(
         )
 
         # Write transform parameter files
-        fn = Path(zarr_url) / "registration" / (f"{roi_table}_roi_{ROI_id}.h5")
+        fn = (
+            Path(zarr_url)
+            / "registration"
+            / (f"{roi_table}_roi_{ROI_id}_lvl_{level}.h5")
+        )
+        if fn.exists() and not overwrite:
+            raise FileExistsError(
+                f"Registration file {fn} already exists. To overwrite, "
+                "set the `overwrite` parameter to True."
+            )
         fn.parent.mkdir(exist_ok=True, parents=True)
-
         warp_map.to_h5(fn)
 
         logger.info(
