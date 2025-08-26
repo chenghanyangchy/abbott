@@ -357,26 +357,30 @@ def write_registered_zarr(
                 if use_masks:
                     data_ref = ref_images.get_roi_masked(
                         label=int(ROI_id),
-                        c=ind_ch,
+                        c=0,
                     ).squeeze()
                     data_mov = mov_images.get_roi_masked(
                         label=int(ROI_id),
                         c=ind_ch,
                     ).squeeze()
 
-                    # Pad to the same shape
-                    max_shape = tuple(
-                        max(r, m)
-                        for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
-                    )
-                    pad_width = get_pad_width(data_ref.shape, max_shape)
-                    data_mov = pad_to_max_shape(data_mov, max_shape)
-
                 else:
+                    data_ref = ref_images.get_roi(
+                        roi=ref_roi,
+                        c=0,
+                    ).squeeze()
                     data_mov = mov_images.get_roi(
                         roi=mov_roi,
                         c=ind_ch,
                     ).squeeze()
+
+                # Pad to the same shape
+                max_shape = tuple(
+                    max(r, m)
+                    for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
+                )
+                pad_width = get_pad_width(data_ref.shape, max_shape)
+                data_mov = pad_to_max_shape(data_mov, max_shape)
 
                 # Apply the registration
                 itk_img = to_itk(data_mov, scale=pxl_sizes_zyx)
@@ -386,10 +390,10 @@ def write_registered_zarr(
                 data_mov_reg = to_numpy(
                     apply_transform(itk_img, parameter_object_adapted)
                 )
+                # Bring back to original shape
+                data_mov_reg = unpad_array(data_mov_reg, pad_width)
 
                 if use_masks:
-                    # Bring back to original shape
-                    data_mov_reg = unpad_array(data_mov_reg, pad_width)
                     new_images.set_roi_masked(
                         label=int(ROI_id),
                         c=ind_ch,
@@ -412,17 +416,20 @@ def write_registered_zarr(
                     label=int(ROI_id),
                 )
 
-                # Pad to the same shape
-                max_shape = tuple(
-                    max(r, m)
-                    for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
-                )
-                pad_width = get_pad_width(data_mov.shape, max_shape)
-                data_mov = pad_to_max_shape(data_mov, max_shape)
             else:
+                data_ref = ref_images.get_roi(
+                    roi=ref_roi,
+                )
                 data_mov = mov_images.get_roi(
                     roi=mov_roi,
                 )
+
+            # Pad to the same shape
+            max_shape = tuple(
+                max(r, m) for r, m in zip(data_ref.shape, data_mov.shape, strict=False)
+            )
+            pad_width = get_pad_width(data_mov.shape, max_shape)
+            data_mov = pad_to_max_shape(data_mov, max_shape)
 
             # Apply the registration
             itk_img = to_itk(data_mov, scale=tuple(pxl_sizes_zyx))
@@ -430,10 +437,10 @@ def write_registered_zarr(
                 parameter_object=parameter_object, itk_img=itk_img
             )
             data_mov_reg = to_numpy(apply_transform(itk_img, parameter_object_adapted))
+            # Bring back to original shape
+            data_mov_reg = unpad_array(data_mov_reg, pad_width)
 
             if use_masks:
-                # Bring back to original shape
-                data_mov_reg = unpad_array(data_mov_reg, pad_width)
                 new_images.set_roi_masked(
                     label=int(ROI_id),
                     patch=data_mov_reg,

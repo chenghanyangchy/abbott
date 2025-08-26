@@ -76,6 +76,7 @@ def compute_registration_warpfield(
             Default: `False`.
     """
     try:
+        import cupy as cp
         import warpfield
     except ImportError as e:
         raise ImportError(
@@ -277,6 +278,9 @@ def compute_registration_warpfield(
             )
         fn.parent.mkdir(exist_ok=True, parents=True)
         warp_map.to_h5(fn)
+
+        # Free GPU memory after each ROI
+        cp.get_default_memory_pool().free_all_blocks()
 
         logger.info(
             "Finished computing warpfield registration parameters "

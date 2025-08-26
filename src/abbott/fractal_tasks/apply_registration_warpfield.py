@@ -323,6 +323,7 @@ def write_registered_zarr(
 
     """
     try:
+        import cupy as cp
         import warpfield
     except ImportError as e:
         raise ImportError(
@@ -406,9 +407,11 @@ def write_registered_zarr(
             # Loop over channels
             for ind_ch in range(num_channels):
                 if use_masks:
+                    # Set Channel to 0, assuming reference channels all have same shape
+                    # Avoids error if n channels in ref and mov differ
                     data_ref = ref_images.get_roi_masked(
                         label=int(ROI_id),
-                        c=ind_ch,
+                        c=0,
                         mode="dask",
                     ).squeeze()
                     data_mov = mov_images.get_roi_masked(
@@ -420,7 +423,7 @@ def write_registered_zarr(
                 else:
                     data_ref = ref_images.get_roi(
                         roi=ref_roi,
-                        c=ind_ch,
+                        c=0,
                         mode="dask",
                     ).squeeze()
                     data_mov = mov_images.get_roi(
@@ -526,6 +529,9 @@ def write_registered_zarr(
                 "`write_registered_zarr` has not been implemented for "
                 f"a zarr with {axes_list=}"
             )
+
+        # Free GPU memory after each ROI
+        cp.get_default_memory_pool().free_all_blocks()
 
     # Remove labels and tables from new_zarr_url
     shutil.rmtree(f"{new_zarr_url}/tables")
