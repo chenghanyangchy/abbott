@@ -143,28 +143,26 @@ def apply_registration_warpfield(
             os.rename(zarr_url, f"{zarr_url}_tmp")
             os.rename(new_zarr_url, zarr_url)
             shutil.rmtree(f"{zarr_url}_tmp")
-            image_list_updates = dict(
-                image_list_updates=[dict(zarr_url=zarr_url, registered=True)]
-            )
+            image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
             image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
 
         else:
             image_list_updates = dict(
-                image_list_updates=[
-                    dict(
-                        zarr_url=new_zarr_url,
-                        origin=zarr_url,
-                        types=dict(registered=True),
-                    )
-                ]
+                image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]
             )
             # Update the metadata of the the well
             well_url, new_img_path = _split_well_path_image_path(new_zarr_url)
-            _update_well_metadata(
-                well_url=well_url,
-                old_image_path=old_img_path,
-                new_image_path=new_img_path,
-            )
+            try:
+                _update_well_metadata(
+                    well_url=well_url,
+                    old_image_path=old_img_path,
+                    new_image_path=new_img_path,
+                )
+            except ValueError as e:
+                logger.warning(
+                    f"Could not update the well metadata for {zarr_url=} and "
+                    f"{new_img_path}: {e}"
+                )
 
         return image_list_updates
 
@@ -277,11 +275,17 @@ def apply_registration_warpfield(
         )
         # Update the metadata of the the well
         well_url, new_img_path = _split_well_path_image_path(new_zarr_url)
-        _update_well_metadata(
-            well_url=well_url,
-            old_image_path=old_img_path,
-            new_image_path=new_img_path,
-        )
+        try:
+            _update_well_metadata(
+                well_url=well_url,
+                old_image_path=old_img_path,
+                new_image_path=new_img_path,
+            )
+        except ValueError as e:
+            logger.warning(
+                f"Could not update the well metadata for {zarr_url=} and "
+                f"{new_img_path}: {e}"
+            )
 
     return image_list_updates
 
