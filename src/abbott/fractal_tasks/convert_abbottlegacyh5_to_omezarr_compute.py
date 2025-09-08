@@ -335,7 +335,7 @@ def convert_abbottlegacyh5_to_omezarr_compute(
             `zarr_dir/plate_name/row/column/`.
         init_args: Initialization arguments passed from init task.
         input_path: Input path to the H5 file, or a folder containing H5 files.
-        level: The level of the image to convert. Default is 0.
+        level: The level of the image to convert. Currently only level 0 is supported.
         wavelengths: Wavelength conversion dictionary mapping.
         axes_names: The layout of the image data. Currently only implemented for 'ZYX'.
         ome_zarr_parameters (OMEZarrBuilderParams): Parameters for the OME-Zarr builder.
@@ -343,6 +343,9 @@ def convert_abbottlegacyh5_to_omezarr_compute(
     """
     logger.info(f"Converting abbott legacy H5 files to OME-Zarr for {zarr_url}")
     logger.info(f"For axes: {axes_names} and level {level}")
+
+    if level != 0:
+        raise ValueError("Currently only level 0 is supported for conversion.")
 
     if axes_names != "ZYX":
         raise ValueError(
