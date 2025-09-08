@@ -18,7 +18,10 @@ from fractal_tasks_core.tasks.io_models import InitArgsRegistration
 from ngio import open_ome_zarr_container
 from pydantic import validate_call
 
-from abbott.registration.fractal_helper_tasks import pad_to_max_shape
+from abbott.registration.fractal_helper_tasks import (
+    histogram_matching,
+    pad_to_max_shape,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,7 @@ def compute_registration_warpfield(
     # Core parameters
     level: int,
     wavelength_id: str,
+    histogram_normalisation: bool = True,
     path_to_registration_recipe: Optional[str] = None,
     save_reg_video: bool = False,
     roi_table: str = "FOV_ROI_table",
@@ -58,6 +62,8 @@ def compute_registration_warpfield(
         level: Pyramid level of the image to be used for registration.
         wavelength_id: Wavelength that will be used for image-based
             registration; e.g. `A01_C01` for Yokogawa, `C01` for MD.
+        histogram_normalisation: If `True`, applies histogram normalisation to the
+            moving image before calculating the registration. Default: `True`.
         path_to_registration_recipe: Path to the warpfield .yml registration recipe.
             This parameter is optional, if not provided, the default .yml recipe
             will be used.
@@ -190,25 +196,21 @@ def compute_registration_warpfield(
             img_ref = ref_images.get_roi_masked(
                 label=int(ROI_id),
                 c=channel_index_ref,
-                mode="dask",
             ).squeeze()
             img_mov = mov_images.get_roi_masked(
                 label=int(ROI_id),
                 c=channel_index_align,
-                mode="dask",
             ).squeeze()
 
         else:
             img_ref = ref_images.get_roi(
                 roi=ref_roi,
                 c=channel_index_ref,
-                mode="dask",
             ).squeeze()
             mov_roi = mov_roi_table.get(ROI_id)
             img_mov = mov_images.get_roi(
                 roi=mov_roi,
                 c=channel_index_align,
-                mode="dask",
             ).squeeze()
 
         # Pad images to the same shape
@@ -219,6 +221,13 @@ def compute_registration_warpfield(
 
         img_ref = pad_to_max_shape(img_ref, max_shape)
         img_mov = pad_to_max_shape(img_mov, max_shape)
+
+        # Apply histogram normalisation if requested
+        if histogram_normalisation:
+            img_mov = histogram_matching(img_mov, img_ref)
+            logger.info(
+                f"Applied histogram normalisation to moving image " f"for ROI {ROI_id}."
+            )
 
         ##############
         #  Calculate the transformation

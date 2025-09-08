@@ -189,6 +189,7 @@ def test_registration_workflow_masked(test_data_dir):
 #             zarr_url=param["zarr_url"],
 #             init_args=param["init_args"],
 #             wavelength_id=wavelength_id,
+#             histogram_normalisation=True,
 #             path_to_registration_recipe=path_to_registration_recipe,
 #             roi_table=roi_table,
 #             use_masks=False,

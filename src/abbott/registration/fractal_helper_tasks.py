@@ -77,3 +77,43 @@ def unpad_array(padded_array, pad_width):
         else:
             slices.append(slice(pad_before, -pad_after if pad_after > 0 else None))
     return padded_array[tuple(slices)]
+
+
+def histogram_matching(mov: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    """Perform histogram matching of a 3D array so that its histogram matches
+
+    that of the template.
+
+    Parameters
+    ----------
+    mov : np.ndarray
+        Moving volume.
+    ref : np.ndarray
+        Reference volume.
+
+    Returns:
+    -------
+    matched : np.ndarray
+        Transformed source with histogram matched to template.
+    """
+    # Flatten arrays
+    source_flat = mov.ravel()
+    template_flat = ref.ravel()
+
+    # Get unique pixel values and corresponding counts
+    _, bin_idx, s_counts = np.unique(
+        source_flat, return_inverse=True, return_counts=True
+    )
+    t_values, t_counts = np.unique(template_flat, return_counts=True)
+
+    # Compute normalized CDFs
+    s_quantiles = np.cumsum(s_counts).astype(np.float64) / source_flat.size
+    t_quantiles = np.cumsum(t_counts).astype(np.float64) / template_flat.size
+
+    # Interpolate pixel values from template
+    interp_t_values = np.interp(s_quantiles, t_quantiles, t_values)
+
+    # Map source pixels to matched values
+    matched = interp_t_values[bin_idx].reshape(mov.shape)
+
+    return matched.astype(mov.dtype)
