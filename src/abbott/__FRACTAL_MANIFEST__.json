@@ -137,9 +137,6 @@
     },
     {
       "name": "Apply Registration (elastix)",
-      "input_types": {
-        "registered": false
-      },
       "output_types": {
         "registered": true
       },
@@ -351,7 +348,6 @@
     {
       "name": "Apply Registration (warpfield)",
       "input_types": {
-        "registered": false,
         "is_3D": true
       },
       "output_types": {
@@ -441,8 +437,8 @@
       "type": "parallel",
       "executable_parallel": "fractal_tasks/compute_channel_registration_elastix.py",
       "meta_parallel": {
-        "cpus_per_task": 1,
-        "mem": 4000
+        "cpus_per_task": 4,
+        "mem": 16000
       },
       "args_schema_parallel": {
         "additionalProperties": false,
@@ -518,8 +514,8 @@
       "type": "parallel",
       "executable_parallel": "fractal_tasks/apply_channel_registration_elastix.py",
       "meta_parallel": {
-        "cpus_per_task": 1,
-        "mem": 4000
+        "cpus_per_task": 4,
+        "mem": 16000
       },
       "args_schema_parallel": {
         "additionalProperties": false,
