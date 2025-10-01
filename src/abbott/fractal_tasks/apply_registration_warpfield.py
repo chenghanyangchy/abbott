@@ -113,9 +113,13 @@ def apply_registration_warpfield(
     else:
         ref_path = acq_dict[reference_acquisition][0]
     reference_zarr_url = f"{well_url}/{ref_path}"
+    logger.info(f"Using {reference_zarr_url=}")
 
     # If the reference zarr url is zarr_url, copy data from reference_zarr_url
     # to new_zarr_url and skip the registration.
+    # Warpfield registration doesn't fit in GPU memory for large images, so
+    # typically level>0 is used for registration, but the original image is
+    # level=0)
     if reference_zarr_url == zarr_url:
         logger.info(
             "Skipping registration for the reference acquisition. "
@@ -125,14 +129,28 @@ def apply_registration_warpfield(
         ome_zarr_new = ome_zarr_ref.derive_image(
             store=new_zarr_url,
             ref_path=str(level),
-            copy_labels=True,
+            copy_labels=False,
             copy_tables=True,
             overwrite=True,
         )
-        images = ome_zarr_ref.get_image(path=str(level))
-        images_new = ome_zarr_new.get_image(path="0")
+
+        # Get correct images/labels by pixel_size
+        pixel_size = ome_zarr_new.get_image(path="0").pixel_size
+
+        # Copy images
+        images = ome_zarr_ref.get_image(pixel_size=pixel_size)
+        images_new = ome_zarr_new.get_image(pixel_size=pixel_size)
         images_new.set_array(images.get_array(mode="dask"))
         images_new.consolidate()
+
+        # Copy labels
+        label_names = ome_zarr_ref.list_labels()
+        for label_name in label_names:
+            new_label = ome_zarr_new.derive_label(label_name, overwrite=overwrite_input)
+            ref_label = ome_zarr_ref.get_label(label_name, pixel_size=pixel_size)
+            ref_label = ref_label.get_array(mode="dask")
+            new_label.set_array(ref_label)
+            new_label.consolidate()
 
         if overwrite_input:
             logger.info("Replace original zarr image with the newly created Zarr image")
@@ -144,8 +162,6 @@ def apply_registration_warpfield(
             os.rename(new_zarr_url, zarr_url)
             shutil.rmtree(f"{zarr_url}_tmp")
             image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
-            image_list_updates = dict(image_list_updates=[dict(zarr_url=zarr_url)])
-
         else:
             image_list_updates = dict(
                 image_list_updates=[dict(zarr_url=new_zarr_url, origin=zarr_url)]
@@ -197,8 +213,8 @@ def apply_registration_warpfield(
     write_registered_zarr(
         zarr_url=zarr_url,
         reference_zarr_url=reference_zarr_url,
-        level=level,
         new_zarr_url=new_zarr_url,
+        level=level,
         roi_table_name=roi_table,
         ome_zarr_mov=ome_zarr_mov,
         use_masks=use_masks,
@@ -209,14 +225,22 @@ def apply_registration_warpfield(
     ####################
     # Process labels
     ####################
+    logger.info("Copying labels from the reference acquisition to the new acquisition.")
 
-    label_list = ome_zarr_mov.list_labels()
+    ome_zarr_new = open_ome_zarr_container(new_zarr_url)
+    # Get correct images/labels by pixel_size
+    pixel_size = ome_zarr_new.get_image(path="0").pixel_size
 
-    if label_list:
-        logger.warning(
-            "Skipping registration of labels ... Label registration "
-            "is not implemented."
-        )
+    label_names = ome_zarr_ref.list_labels()
+    for label_name in label_names:
+        new_label = ome_zarr_new.derive_label(label_name, overwrite=overwrite_input)
+        ref_label = ome_zarr_ref.get_label(label_name, pixel_size=pixel_size)
+        ref_label = ref_label.get_array(mode="dask")
+        new_label.set_array(ref_label)
+        new_label.consolidate()
+    logger.info(
+        "Finished copying labels from the reference acquisition to the new acquisition."
+    )
 
     ####################
     # Copy tables
@@ -226,21 +250,19 @@ def apply_registration_warpfield(
     ####################
     logger.info("Copying tables from the reference acquisition to the new acquisition.")
 
-    new_ome_zarr = open_ome_zarr_container(new_zarr_url)
-
     table_names = ome_zarr_ref.list_tables()
     for table_name in table_names:
         table = ome_zarr_ref.get_table(table_name)
         if table.type() == "roi_table" or table.type() == "masking_roi_table":
             # Copy ROI tables from the reference acquisition
-            new_ome_zarr.add_table(table_name, table, overwrite=overwrite_input)
+            ome_zarr_new.add_table(table_name, table, overwrite=overwrite_input)
         else:
             logger.warning(
                 f"{zarr_url} contained a table that is not a standard "
                 "ROI table. The `Apply Registration Warpfield` task is "
                 "best used before additional e.g. feature tables are generated."
             )
-            new_ome_zarr.add_table(
+            ome_zarr_new.add_table(
                 table_name,
                 table,
                 overwrite=overwrite_input,
@@ -293,8 +315,8 @@ def apply_registration_warpfield(
 def write_registered_zarr(
     zarr_url: str,
     reference_zarr_url: str,
-    level: int,
     new_zarr_url: str,
+    level: int,
     roi_table_name: str,
     ome_zarr_mov: OmeZarrContainer,
     use_masks: bool = False,
@@ -315,9 +337,9 @@ def write_registered_zarr(
             the basis for the new OME-Zarr image.
         reference_zarr_url: Path or url to the individual OME-Zarr image that
             was used as the reference for the registration.
+        new_zarr_url: Path or url to the new OME-Zarr image to be written.
         level: Which resolution level to apply the registration on. Must match
             the level that was used during computation of the registration.
-        new_zarr_url: Path or url to the new OME-Zarr image to be written
         roi_table_name: Name of the ROI table which has been used during
             computation of registration parameters.
         ome_zarr_mov: OME-Zarr container for the moving image to be registered.
@@ -339,7 +361,7 @@ def write_registered_zarr(
     ref_roi_table = ome_zarr_ref.get_table(roi_table_name)
 
     # Derive new ome-zarr container from moving image and copy
-    # table/label from reference (if use_masks)
+    # table & label (if use_masks) from reference
     ome_zarr_new = ome_zarr_mov.derive_image(
         store=new_zarr_url,
         ref_path=str(level),
@@ -349,10 +371,15 @@ def write_registered_zarr(
     )
     ome_zarr_new.add_table(roi_table_name, table=ref_roi_table)
 
+    # Get correct images/labels by pixel_size
+    pixel_size = ome_zarr_new.get_image(path="0").pixel_size
+
     if use_masks:
         # Get reference masking label
         new_label = ome_zarr_new.derive_label(masking_label_name, overwrite=True)
-        ref_masking_label = ome_zarr_ref.get_label(masking_label_name, path=str(level))
+        ref_masking_label = ome_zarr_ref.get_label(
+            masking_label_name, pixel_size=pixel_size
+        )
         ref_masking_label = ref_masking_label.get_array(mode="dask")
         new_label.set_array(ref_masking_label)
         new_label.consolidate()
@@ -360,25 +387,25 @@ def write_registered_zarr(
         ref_images = ome_zarr_ref.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path=str(level),
+            pixel_size=pixel_size,
         )
         dtype = ref_images.dtype
         mov_images = ome_zarr_mov.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path=str(level),
+            pixel_size=pixel_size,
         )
         new_images = ome_zarr_new.get_masked_image(
             masking_label_name=masking_label_name,
             masking_table_name=roi_table_name,
-            path="0",
+            pixel_size=pixel_size,
         )
 
     else:
-        ref_images = ome_zarr_ref.get_image(path=str(level))
+        ref_images = ome_zarr_ref.get_image(pixel_size=pixel_size)
         dtype = ref_images.dtype
-        mov_images = ome_zarr_mov.get_image(path=str(level))
-        new_images = ome_zarr_new.get_image(path="0")
+        mov_images = ome_zarr_mov.get_image(pixel_size=pixel_size)
+        new_images = ome_zarr_new.get_image(pixel_size=pixel_size)
 
     roi_table_mov = ome_zarr_mov.get_table(roi_table_name)
     roi_table_ref = ome_zarr_ref.get_table(roi_table_name)

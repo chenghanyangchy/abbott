@@ -46,7 +46,6 @@ TASK_LIST = [
     ),
     ParallelTask(
         name="Apply Registration (elastix)",
-        input_types=dict(registered=False),
         executable="fractal_tasks/apply_registration_elastix.py",
         output_types=dict(registered=True),
         meta={"cpus_per_task": 16, "mem": 60000},
@@ -68,7 +67,7 @@ TASK_LIST = [
     ),
     ParallelTask(
         name="Apply Registration (warpfield)",
-        input_types=dict(registered=False, is_3D=True),
+        input_types=dict(is_3D=True),
         executable="fractal_tasks/apply_registration_warpfield.py",
         output_types=dict(registered=True),
         meta={"cpus_per_task": 16, "mem": 60000, "needs_gpu": True},
@@ -80,7 +79,7 @@ TASK_LIST = [
     ParallelTask(
         name="Compute Channel Registration (elastix)",
         executable="fractal_tasks/compute_channel_registration_elastix.py",
-        meta={"cpus_per_task": 1, "mem": 4000},
+        meta={"cpus_per_task": 4, "mem": 16000},
         category="Registration",
         modality="HCS",
         tags=["Multiplexing", "3D"],
@@ -91,7 +90,7 @@ TASK_LIST = [
         input_types=dict(channels_registered=False),
         executable="fractal_tasks/apply_channel_registration_elastix.py",
         output_types=dict(channels_registered=True),
-        meta={"cpus_per_task": 1, "mem": 4000},
+        meta={"cpus_per_task": 4, "mem": 16000},
         category="Registration",
         modality="HCS",
         tags=["Multiplexing", "3D"],

@@ -193,13 +193,20 @@ def apply_registration_elastix(
     # Process labels
     ####################
 
-    label_list = ome_zarr_mov.list_labels()
+    logger.info("Copying labels from the reference acquisition to the new acquisition.")
 
-    if label_list:
-        logger.warning(
-            "Skipping registration of labels ... Label registration "
-            "has not been implemented."
-        )
+    new_ome_zarr = open_ome_zarr_container(new_zarr_url)
+
+    label_names = ome_zarr_ref.list_labels()
+    for label_name in label_names:
+        new_label = new_ome_zarr.derive_label(label_name, overwrite=overwrite_input)
+        ref_label = ome_zarr_ref.get_label(label_name, path="0")
+        ref_label = ref_label.get_array(mode="dask")
+        new_label.set_array(ref_label)
+        new_label.consolidate()
+    logger.info(
+        "Finished copying labels from the reference acquisition to the new acquisition."
+    )
 
     ####################
     # Copy tables
@@ -208,8 +215,6 @@ def apply_registration_elastix(
     # acquisition.
     ####################
     logger.info("Copying tables from the reference acquisition to the new acquisition.")
-
-    new_ome_zarr = open_ome_zarr_container(new_zarr_url)
 
     table_names = ome_zarr_ref.list_tables()
     for table_name in table_names:
