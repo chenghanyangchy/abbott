@@ -5,6 +5,8 @@ Based on: https://github.com/MaksHess/abbott/blob/main/src/abbott/registration/i
 """
 
 from collections.abc import Sequence
+from importlib.resources import files
+from pathlib import Path
 
 import itk
 
@@ -167,4 +169,49 @@ def adapt_itk_params(parameter_object, itk_img):
         itk_size = tuple([str(x) for x in itk_img.GetRequestedRegion().GetSize()])
         parameter_object.SetParameter(i, "Spacing", itk_spacing)
         parameter_object.SetParameter(i, "Size", itk_size)
+    return parameter_object
+
+
+def get_identity_parameter_file_path(dimension: int) -> str:
+    """Return the path to the identity parameter file for the given dimension."""
+    if dimension not in (2, 3):
+        raise ValueError(f"Unsupported dimension: {dimension}")
+
+    filename = f"params_identity_{dimension}d.txt"
+
+    # Dynamically get the resource path
+    return str(files("abbott.registration").joinpath(filename))
+
+
+def create_identity_transform_from_file(
+    reference_image: itk.Image, parameter_file_path: str
+) -> itk.ParameterObject:
+    """Load an identity transform from a parameter file and adapt it.
+
+    Args:
+        reference_image: ITK image used to extract spacing and size.
+        parameter_file_path: Path to the identity parameter file (e.g.,
+        EulerTransform with zero rotation/translation).
+
+    Returns:
+        An ITK ParameterObject that applies the identity transform with
+        correct size/spacing.
+    """
+    if not Path(parameter_file_path).exists():
+        raise FileNotFoundError(
+            f"Identity transform file not found: {parameter_file_path}"
+        )
+
+    # Load identity transform from file
+    parameter_object = itk.ParameterObject.New()
+    parameter_object.AddParameterFile(parameter_file_path)
+
+    # Get spacing and size from image
+    spacing = [str(s) for s in reference_image.GetSpacing()]
+    size = [str(s) for s in reference_image.GetRequestedRegion().GetSize()]
+
+    # Set parameters on the first (and only) transform
+    parameter_object.SetParameter(0, "Spacing", spacing)
+    parameter_object.SetParameter(0, "Size", size)
+
     return parameter_object

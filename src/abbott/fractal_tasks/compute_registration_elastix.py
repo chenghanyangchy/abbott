@@ -15,14 +15,20 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 from fractal_tasks_core.tasks.io_models import InitArgsRegistration
 from ngio import open_ome_zarr_container
+from ngio.tables import GenericTable
 from pydantic import validate_call
 from skimage.exposure import rescale_intensity
 
 from abbott.fractal_tasks.conversions import to_itk
 from abbott.registration.fractal_helper_tasks import pad_to_max_shape
-from abbott.registration.itk_elastix import register_transform_only
+from abbott.registration.itk_elastix import (
+    create_identity_transform_from_file,
+    get_identity_parameter_file_path,
+    register_transform_only,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,7 @@ def compute_registration_elastix(
     roi_table: str = "FOV_ROI_table",  # TODO: allow "emb_ROI_table"
     use_masks: bool = False,
     masking_label_name: Optional[str] = None,
+    skip_failed_rois: bool = True,
 ) -> None:
     """Calculate elastix registration based on images
 
@@ -81,6 +88,11 @@ def compute_registration_elastix(
             loading is relevant when only a subset of the bounding box should
             actually be processed (e.g. running within `embryo_ROI_table`).
         masking_label_name: Optional label for masking ROI e.g. `embryo`.
+        skip_failed_rois: If `True`, ROIs that fail during registration
+            will be skipped and the task will continue with the next ROI. An
+            identity transformation will be written for the failed ROIs and a
+            condition table will be added to the OME-Zarr listing the ROIs
+            with issues.
 
     """
     logger.info(
@@ -163,10 +175,12 @@ def compute_registration_elastix(
         )
 
     num_ROIs = len(ref_roi_table.rois())
+    failed_registrations = []
     for i_ROI, ref_roi in enumerate(ref_roi_table.rois()):
         ROI_id = ref_roi.name
         logger.info(
-            f"Now processing ROI {i_ROI+1}/{num_ROIs} " f"for {wavelength_id=}."
+            f"Now processing ROI {ROI_id} ({i_ROI+1}/{num_ROIs}) "
+            f"for {wavelength_id=}."
         )
 
         if use_masks:
@@ -224,7 +238,25 @@ def compute_registration_elastix(
             )
         ref = to_itk(img_ref, scale=pxl_sizes_zyx_ref)
         move = to_itk(img_mov, scale=pxl_sizes_zyx_mov)
-        trans = register_transform_only(ref, move, parameter_files)
+        try:
+            trans = register_transform_only(ref, move, parameter_files)
+        except RuntimeError as e:
+            if skip_failed_rois:
+                logger.warning(
+                    f"Registration failed for ROI {ROI_id} with the "
+                    f"following error: {e}"
+                )
+                identity_file = get_identity_parameter_file_path(
+                    ref.GetImageDimension()
+                )
+                trans = create_identity_transform_from_file(ref, identity_file)
+                failed_registrations.append((ROI_id, "Elastix RuntimeError"))
+            else:
+                raise RuntimeError(
+                    f"Computing registration failed for ROI {ROI_id} with the "
+                    f"following error: {e}. Returning an identity transform "
+                    "instead."
+                ) from e
 
         # Write transform parameter files
         # TODO: Add overwrite check (it overwrites by default)
@@ -237,6 +269,19 @@ def compute_registration_elastix(
             )
             fn.parent.mkdir(exist_ok=True, parents=True)
             trans.WriteParameterFile(trans_map, fn.as_posix())
+
+    # Write condition tables if registration failed for a ROI
+    if failed_registrations:
+        df_errors = pd.DataFrame(failed_registrations, columns=["ROI", "Reason"])
+        # TODO: Update this to a condition table once we adopt ngio >= 0.3
+        error_table = GenericTable(df_errors)
+        # TODO: Adopt the non-experimental csv backend once we adopt ngio >= 0.3
+        ome_zarr_mov.add_table(
+            name="registration_errors",
+            table=error_table,
+            overwrite=True,
+            backend="experimental_csv_v1",
+        )
 
 
 if __name__ == "__main__":
