@@ -122,6 +122,12 @@
             "title": "Masking Label Name",
             "type": "string",
             "description": "Optional label for masking ROI e.g. `embryo`."
+          },
+          "skip_failed_rois": {
+            "default": true,
+            "title": "Skip Failed Rois",
+            "type": "boolean",
+            "description": "If `True`, ROIs that fail during registration will be skipped and the task will continue with the next ROI. An identity transformation will be written for the failed ROIs and a condition table will be added to the OME-Zarr listing the ROIs with issues."
           }
         },
         "required": [

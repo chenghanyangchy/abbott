@@ -11,6 +11,9 @@ source = "vcs"
 # https://hatch.pypa.io/latest/config/build/
 [tool.hatch.build.targets.wheel]
 packages = ["src/abbott"]
+include = [
+    "src/abbott/registration/params_identity_*.txt",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true # for warpfield build from github
