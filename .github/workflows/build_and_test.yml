@@ -51,14 +51,6 @@ jobs:
       - name: Install package
         run: python -m pip install -e .[dev,stardist]
 
-      # 🔍 Optional debug: check usage after installing dependencies
-      - name: Check disk usage (after install)
-        run: |
-          echo "Overall disk usage:"
-          df -h
-          echo "Top 20 largest directories/files:"
-          sudo du -ah / | sort -rh | head -n 20
-
       - name: Check if manifest has changed
         run: fractal-manifest check --package abbott
 

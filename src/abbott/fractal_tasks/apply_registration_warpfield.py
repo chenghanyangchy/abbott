@@ -498,7 +498,7 @@ def write_registered_zarr(
                         c=ind_ch,
                         patch=np.expand_dims(data_mov_reg, axis=0),
                     )
-                new_images.consolidate()
+            new_images.consolidate()
 
         elif axes_list == ["z", "y", "x"]:
             if use_masks:
