@@ -27,6 +27,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # 🧹 Free up disk space at the start
+      - name: Free up disk space
+        run: |
+          echo "Initial disk space:"
+          df -h
+
+          echo "Removing large pre-installed tools..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
