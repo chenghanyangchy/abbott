@@ -44,7 +44,8 @@ def test_registration_workflow(test_data_dir):
         # str(Path(__file__).parent / "data/bspline_lvl2.txt"),
     ]
     # Task-specific arguments
-    wavelength_id = "A01_C01"
+    ref_wavelength_id = "A01_C01"
+    mov_wavelength_id = "A01_C01"
     roi_table = "FOV_ROI_table"
     level = 0
     reference_acquisition = 2
@@ -60,7 +61,8 @@ def test_registration_workflow(test_data_dir):
         compute_registration_elastix(
             zarr_url=param["zarr_url"],
             init_args=param["init_args"],
-            wavelength_id=wavelength_id,
+            ref_wavelength_id=ref_wavelength_id,
+            mov_wavelength_id=mov_wavelength_id,
             roi_table=roi_table,
             parameter_files=parameter_files,
             use_masks=False,
@@ -88,7 +90,8 @@ def test_registration_workflow_varying_levels(test_data_dir):
         # str(Path(__file__).parent / "data/bspline_lvl2.txt"),
     ]
     # Task-specific arguments
-    wavelength_id = "A01_C01"
+    ref_wavelength_id = "A01_C01"
+    mov_wavelength_id = "A01_C01"
     roi_table = "FOV_ROI_table"
     level = 2
     reference_acquisition = 2
@@ -104,7 +107,8 @@ def test_registration_workflow_varying_levels(test_data_dir):
         compute_registration_elastix(
             zarr_url=param["zarr_url"],
             init_args=param["init_args"],
-            wavelength_id=wavelength_id,
+            ref_wavelength_id=ref_wavelength_id,
+            mov_wavelength_id=mov_wavelength_id,
             roi_table=roi_table,
             parameter_files=parameter_files,
             use_masks=False,
@@ -132,7 +136,7 @@ def test_registration_workflow_masked(test_data_dir):
         # str(Path(__file__).parent / "data/bspline_lvl2.txt"),
     ]
     # Task-specific arguments
-    wavelength_id = "A01_C01"
+    ref_wavelength_id = "A01_C01"
     label_name = "emb_linked"
     roi_table = "emb_ROI_table_2_linked"
     level = 0
@@ -149,7 +153,7 @@ def test_registration_workflow_masked(test_data_dir):
         compute_registration_elastix(
             zarr_url=param["zarr_url"],
             init_args=param["init_args"],
-            wavelength_id=wavelength_id,
+            ref_wavelength_id = ref_wavelength_id,
             roi_table=roi_table,
             parameter_files=parameter_files,
             use_masks=True,

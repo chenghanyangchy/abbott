@@ -41,7 +41,8 @@ def compute_registration_elastix(
     init_args: InitArgsRegistration,
     # Core parameters
     level: int = 0,
-    wavelength_id: str,
+    ref_wavelength_id: str,
+    mov_wavelength_id: Optional[str] = None,#make it optional, if not go back to ref
     parameter_files: list[str],
     lower_rescale_quantile: float = 0.0,
     upper_rescale_quantile: float = 0.99,
@@ -68,8 +69,10 @@ def compute_registration_elastix(
         level: Pyramid level of the image to be used for registration.
             Choose `0` to process at full resolution. Currently only level 0
             is supported.
-        wavelength_id: Wavelength that will be used for image-based
-            registration; e.g. `A01_C01` for Yokogawa, `C01` for MD.
+        ref_wavelength_id: Wavelength that will be used for image-based
+            registration as the reference; e.g. `A01_C01` for Yokogawa, `C01` for MD.
+        mov_wavelength_id: [optional] Wavelength that will be used for image-based
+            registration for moving; e.g. `A01_C01` for Yokogawa, `C01` for MD.
         parameter_files: Paths to the elastix parameter files to be used. List order is
              order of registration. E.g. parse first rigid, then affine
              and lastly bspline.
@@ -98,7 +101,7 @@ def compute_registration_elastix(
     logger.info(
         f"Running for {zarr_url=}.\n"
         f"Calculating elastix registration per {roi_table=} for "
-        f"{wavelength_id=}."
+        f"{ref_wavelength_id=}."
     )
 
     reference_zarr_url = init_args.reference_zarr_url
@@ -106,14 +109,21 @@ def compute_registration_elastix(
     # Load channel to register by
     ome_zarr_ref = open_ome_zarr_container(reference_zarr_url)
     channel_index_ref = ome_zarr_ref.image_meta._get_channel_idx_by_wavelength_id(
-        wavelength_id
+        ref_wavelength_id
     )
 
     ome_zarr_mov = open_ome_zarr_container(zarr_url)
-    channel_index_align = ome_zarr_mov.image_meta._get_channel_idx_by_wavelength_id(
-        wavelength_id
-    )
+    if mov_wavelength_id is not None:
+        channel_index_align = ome_zarr_mov.image_meta._get_channel_idx_by_wavelength_id(
+            mov_wavelength_id
+        )
+        logger.info(f"Running registration with {mov_wavelength_id=}")
+    else:
+        channel_index_align = ome_zarr_mov.image_meta._get_channel_idx_by_wavelength_id(
+            ref_wavelength_id
+        )
 
+    
     ref_images = ome_zarr_ref.get_image(path=str(level))
     mov_images = ome_zarr_mov.get_image(path=str(level))
 
@@ -180,7 +190,7 @@ def compute_registration_elastix(
         ROI_id = ref_roi.name
         logger.info(
             f"Now processing ROI {ROI_id} ({i_ROI+1}/{num_ROIs}) "
-            f"for {wavelength_id=}."
+            f"for {ref_wavelength_id=}."
         )
 
         if use_masks:
