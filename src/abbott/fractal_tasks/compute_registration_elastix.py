@@ -42,7 +42,7 @@ def compute_registration_elastix(
     # Core parameters
     level: int = 0,
     ref_wavelength_id: str,
-    mov_wavelength_id: Optional[str] = None,#make it optional, if not go back to ref
+    mov_wavelength_id: Optional[str] = None,
     parameter_files: list[str],
     lower_rescale_quantile: float = 0.0,
     upper_rescale_quantile: float = 0.99,
@@ -71,8 +71,8 @@ def compute_registration_elastix(
             is supported.
         ref_wavelength_id: Wavelength that will be used for image-based
             registration as the reference; e.g. `A01_C01` for Yokogawa, `C01` for MD.
-        mov_wavelength_id: [optional] Wavelength that will be used for image-based
-            registration for moving; e.g. `A01_C01` for Yokogawa, `C01` for MD.
+        mov_wavelength_id: (Optional) wavelength that will be used for image-based
+            registration for moving images; e.g. `A01_C01` for Yokogawa, `C01` for MD.
         parameter_files: Paths to the elastix parameter files to be used. List order is
              order of registration. E.g. parse first rigid, then affine
              and lastly bspline.
