@@ -89,7 +89,7 @@
           "mov_wavelength_id": {
             "title": "Mov Wavelength Id",
             "type": "string",
-            "description": "[optional] Wavelength that will be used for image-based registration for moving; e.g. `A01_C01` for Yokogawa, `C01` for MD."
+            "description": "(Optional) wavelength that will be used for image-based registration for moving images; e.g. `A01_C01` for Yokogawa, `C01` for MD."
           },
           "parameter_files": {
             "items": {
